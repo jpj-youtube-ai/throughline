@@ -36,3 +36,9 @@ export async function listVotingIdeas(db: Db): Promise<VotingIdea[]> {
     .groupBy(ideas.id, users.githubLogin)
     .orderBy(desc(sql`count(${votes.id})`), desc(ideas.createdAt));
 }
+
+// Idea ids the given user has already voted on (to mark/disable the vote button).
+export async function idsUserVotedFor(db: Db, userId: string): Promise<string[]> {
+  const rows = await db.select({ ideaId: votes.ideaId }).from(votes).where(eq(votes.userId, userId));
+  return rows.map((r) => r.ideaId);
+}
