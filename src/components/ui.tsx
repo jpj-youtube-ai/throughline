@@ -23,9 +23,11 @@ export function Pill({ tone = "neutral", children, dot = true }: { tone?: Tone; 
   );
 }
 
-export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+export function Card({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
   return (
-    <div className={`rounded-leaf border border-hairline bg-paper-raised ${className}`}>{children}</div>
+    <div id={id} className={`rounded-leaf border border-hairline bg-paper-raised ${className}`}>
+      {children}
+    </div>
   );
 }
 

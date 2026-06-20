@@ -75,6 +75,17 @@ export function ReconcileIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function SpecIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.2" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.2" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.2" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.2" />
+    </Svg>
+  );
+}
+
 export function ArrowIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>
