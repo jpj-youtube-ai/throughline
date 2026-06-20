@@ -1,8 +1,24 @@
+import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { listActivity, type ActivityItem } from "@/events/feed";
-import { PageHeader, Empty } from "@/components/ui";
+import { logWorkRetroactively } from "@/work/retroactive";
+import { PageHeader, Empty, Field, fieldClass, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
+
+async function logWork(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not signed in.");
+  await logWorkRetroactively(getDb(), {
+    summary: String(formData.get("summary") ?? ""),
+    rationale: String(formData.get("rationale") ?? ""),
+    taskKey: String(formData.get("taskKey") ?? "") || null,
+    actorId: session.user.id,
+  });
+  revalidatePath("/pulse");
+}
 
 function relTime(d: Date): string {
   const m = Math.round((Date.now() - d.getTime()) / 60000);
@@ -45,6 +61,30 @@ export default async function PulsePage() {
         title="Pulse"
         lede="Every decision, in the order it happened — and the why beneath it."
       />
+
+      <details className="group mb-8 rounded-leaf border border-hairline bg-paper-raised">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-2.5 text-sm text-graphite hover:text-ink">
+          <span className="font-mono text-spine transition-transform group-open:rotate-45">+</span>
+          Log work done off-platform
+        </summary>
+        <form action={logWork} className="grid gap-3 border-t border-hairline p-4">
+          <p className="text-[13px] text-graphite">
+            Something happen outside the flow? Record it so the history stays whole. The why is kept with it.
+          </p>
+          <Field label="What was done">
+            <input name="summary" required className={fieldClass} placeholder="e.g. Hotfixed the prod migration by hand" />
+          </Field>
+          <Field label="Why — required">
+            <textarea name="rationale" required rows={2} className={fieldClass} />
+          </Field>
+          <Field label="Related task (optional)">
+            <input name="taskKey" className={fieldClass} placeholder="TASK-NNN" />
+          </Field>
+          <button type="submit" className={`${buttonClass("primary")} justify-self-start`}>
+            Log it
+          </button>
+        </form>
+      </details>
 
       {items.length === 0 ? (
         <Empty title="Nothing has happened yet.">

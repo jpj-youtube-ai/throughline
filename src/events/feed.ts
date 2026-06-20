@@ -97,6 +97,13 @@ export async function listActivity(db: Db, limit = 120): Promise<ActivityItem[]>
       kind = to === "closed" ? "merge" : "default";
     }
 
+    if (r.type === "work.logged_retroactively") {
+      const tk = r.payload?.task_key as string | undefined;
+      verb = tk ? `logged past work on ${tk}` : "logged past work";
+      const summary = r.payload?.summary as string | undefined;
+      subject = summary ? `“${truncate(summary, 46)}”` : null;
+    }
+
     return {
       seq: Number(r.seq),
       type: r.type,
