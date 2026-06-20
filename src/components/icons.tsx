@@ -75,6 +75,14 @@ export function ReconcileIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function QuickWinIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M13 3L5 13h6l-1 8 8-10h-6z" />
+    </Svg>
+  );
+}
+
 export function PipelineIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>

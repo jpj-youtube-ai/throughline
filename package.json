@@ -19,7 +19,7 @@
     "drift": "tsx src/cli/drift.ts",
     "sync:claude": "tsx src/cli/sync-claude.ts",
     "reconcile": "tsx src/cli/reconcile.ts",
-    "test": "tsx --test src/db/events.test.ts src/genesis/import.test.ts src/auth/users.test.ts src/project/bind.test.ts src/ideas/submit.test.ts src/ideas/queries.test.ts src/ideas/vote.test.ts src/generation/persist.test.ts src/github/issues.test.ts src/github/webhook.test.ts src/tasks/claim.test.ts src/conventions.test.ts src/spec/materialize.test.ts src/drift/flag.test.ts src/integrity/claude-md.test.ts src/integrity/reconcile.test.ts src/events/feed.test.ts src/spec/map.test.ts src/narrative/materialize.test.ts src/metrics/burnup.test.ts src/requirements/lifecycle.test.ts src/pipeline/queries.test.ts"
+    "test": "tsx --test src/db/events.test.ts src/genesis/import.test.ts src/auth/users.test.ts src/project/bind.test.ts src/ideas/submit.test.ts src/ideas/queries.test.ts src/ideas/vote.test.ts src/generation/persist.test.ts src/github/issues.test.ts src/github/webhook.test.ts src/tasks/claim.test.ts src/conventions.test.ts src/spec/materialize.test.ts src/drift/flag.test.ts src/integrity/claude-md.test.ts src/integrity/reconcile.test.ts src/events/feed.test.ts src/spec/map.test.ts src/narrative/materialize.test.ts src/metrics/burnup.test.ts src/requirements/lifecycle.test.ts src/pipeline/queries.test.ts src/metrics/quickwins.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

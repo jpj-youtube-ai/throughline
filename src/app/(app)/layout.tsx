@@ -30,7 +30,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </span>
           <span className="font-display text-[17px] font-bold tracking-tight">Throughline</span>
         </div>
-        <div className="mt-7 flex-1">
+        <div className="mt-6 flex-1 overflow-y-auto">
           <NavRail />
         </div>
         <div className="border-t border-hairline pt-3">
