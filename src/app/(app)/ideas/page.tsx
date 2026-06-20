@@ -5,6 +5,7 @@ import { listVotingIdeas, idsUserVotedFor } from "@/ideas/queries";
 import { castVote } from "@/ideas/vote";
 import { APPROVAL_GATE } from "@/ideas/gate";
 import { ideaDecay } from "@/ideas/decay";
+import { listScratchIdeas, promoteIdea } from "@/ideas/scratch";
 import { PageHeader, Card, Pill, Empty, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -17,10 +18,19 @@ async function approve(formData: FormData) {
   revalidatePath("/ideas");
 }
 
+async function promote(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not signed in.");
+  await promoteIdea(getDb(), String(formData.get("ideaId")), session.user.id);
+  revalidatePath("/ideas");
+}
+
 export default async function IdeasPage() {
   const session = await auth();
   const db = getDb();
   const votedIds = session?.user?.id ? new Set(await idsUserVotedFor(db, session.user.id)) : new Set<string>();
+  const scratch = session?.user?.id ? await listScratchIdeas(db, session.user.id) : [];
 
   // Decorate with decay and float the most-languishing ideas up (REQ-023).
   const now = Date.now();
@@ -90,6 +100,34 @@ export default async function IdeasPage() {
             );
           })}
         </ul>
+      )}
+
+      {scratch.length > 0 && (
+        <section className="mt-10">
+          <div className="mb-4 flex items-center gap-2.5">
+            <h2 className="font-mono text-[11px] uppercase tracking-[0.18em] text-graphite">Scratch · yours</h2>
+            <span className="font-mono text-[11px] text-graphite">{scratch.length}</span>
+            <div className="h-px flex-1 bg-hairline" />
+          </div>
+          <ul className="grid gap-2">
+            {scratch.map((s) => (
+              <li key={s.id}>
+                <Card className="flex items-center gap-3 border-dashed p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-ink">{s.title}</div>
+                    {s.why && <div className="truncate text-[13px] text-graphite">{s.why}</div>}
+                  </div>
+                  <form action={promote} className="shrink-0">
+                    <input type="hidden" name="ideaId" value={s.id} />
+                    <button type="submit" className={buttonClass("quiet")}>
+                      Submit for voting
+                    </button>
+                  </form>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </>
   );

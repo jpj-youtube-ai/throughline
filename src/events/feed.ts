@@ -22,6 +22,7 @@ const VERB: Record<string, { verb: string; kind?: NodeKind }> = {
   "project.bound": { verb: "bound the repository" },
   "requirement.declared": { verb: "declared" },
   "idea.submitted": { verb: "submitted" },
+  "idea.graduated": { verb: "opened for voting" },
   "idea.voted": { verb: "voted on" },
   "idea.gate_passed": { verb: "carried to the gate" },
   "idea.approved": { verb: "approved" },

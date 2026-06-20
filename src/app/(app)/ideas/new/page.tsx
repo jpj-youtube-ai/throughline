@@ -20,12 +20,14 @@ export default async function NewIdeaPage() {
     if (!s?.user?.id) throw new Error("Not signed in.");
     const feasibilityRaw = formData.get("feasibility");
     const viabilityRaw = formData.get("viability");
+    const state = formData.get("intent") === "scratch" ? "scratch" : "voting";
     await submitIdea(getDb(), {
       title: String(formData.get("title") ?? ""),
       why: String(formData.get("why") ?? ""),
       feasibility: feasibilityRaw ? Number(feasibilityRaw) : null,
       viability: viabilityRaw ? Number(viabilityRaw) : null,
       authorId: s.user.id,
+      state,
     });
     redirect("/ideas");
   }
@@ -34,8 +36,8 @@ export default async function NewIdeaPage() {
     <div className="max-w-xl">
       <PageHeader
         eyebrow="Intake"
-        title="Submit an idea"
-        lede="Lead with the why — the pitch is what the team votes on, and it is logged with the idea forever."
+        title="New idea"
+        lede="Lead with the why — the pitch is what the team votes on, and it is logged with the idea forever. Save it to scratch to keep refining, or open it for voting now."
       />
       <form action={submit} className="grid gap-5">
         <Field label="Title">
@@ -52,11 +54,14 @@ export default async function NewIdeaPage() {
             <input name="viability" type="number" min={1} max={10} className={fieldClass} />
           </Field>
         </div>
-        <div className="flex items-center gap-4">
-          <button type="submit" className={buttonClass("primary")}>
-            Submit idea
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="submit" name="intent" value="voting" className={buttonClass("primary")}>
+            Open for voting
           </button>
-          <a href="/ideas" className="text-sm text-graphite hover:text-ink">
+          <button type="submit" name="intent" value="scratch" className={buttonClass("quiet")}>
+            Save as scratch
+          </button>
+          <a href="/ideas" className="ml-1 text-sm text-graphite hover:text-ink">
             Cancel
           </a>
         </div>

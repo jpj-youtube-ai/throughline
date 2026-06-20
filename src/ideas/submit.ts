@@ -8,6 +8,7 @@ export interface SubmitIdeaInput {
   feasibility?: number | null; // 1-10
   viability?: number | null; // 1-10
   authorId: string; // users.id
+  state?: "scratch" | "voting"; // scratch = private holding area (REQ-024); default voting
 }
 
 export interface SubmittedIdea {
@@ -23,9 +24,11 @@ function inRange(label: string, v: number | null | undefined): void {
 }
 
 /**
- * Submit an idea (REQ-005): create the idea in `voting` and emit idea.submitted
- * with the why as rationale, in one transaction. The why is mandatory — empty
- * why blocks submission (also enforced by emitEvent's rationale requirement).
+ * Submit an idea (REQ-005): create the idea and emit idea.submitted with the why
+ * as rationale, in one transaction. The why is mandatory — empty why blocks
+ * submission (also enforced by emitEvent's rationale requirement). Created in
+ * `voting` by default, or `scratch` (a private holding area, REQ-024) — promote
+ * scratch → voting later with promoteIdea.
  */
 export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<SubmittedIdea> {
   const title = input.title.trim();
@@ -34,6 +37,7 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
   if (!why) throw new Error("An idea needs a why (the pitch).");
   inRange("feasibility", input.feasibility);
   inRange("viability", input.viability);
+  const state = input.state ?? "voting";
 
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -44,7 +48,7 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
         feasibility: input.feasibility ?? null,
         viability: input.viability ?? null,
         authorId: input.authorId,
-        state: "voting",
+        state,
       })
       .returning({ id: ideas.id, title: ideas.title });
 
@@ -55,6 +59,7 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
       actorId: input.authorId,
       payload: {
         author: input.authorId,
+        state,
         scores: { feasibility: input.feasibility ?? null, viability: input.viability ?? null },
       },
       rationale: why,
