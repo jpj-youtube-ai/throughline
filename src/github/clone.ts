@@ -2,12 +2,18 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+// Redact any installation token embedded in a git URL before it reaches a log or
+// error message (never expose x-access-token:<token>@).
+function redact(s: string): string {
+  return s.replace(/x-access-token:[^@]+@/g, "x-access-token:***@");
+}
+
 function git(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const p = spawn("git", args, { stdio: "inherit" });
     p.on("error", reject);
     p.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error(`git ${args.join(" ")} exited ${code}`)),
+      code === 0 ? resolve() : reject(new Error(redact(`git ${args.join(" ")} exited ${code}`))),
     );
   });
 }

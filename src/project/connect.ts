@@ -65,7 +65,14 @@ export async function bindAndClone(
   const dir = clonePathFor(input.repoFullName);
 
   const token = await getToken(input.installationId);
-  await clone({ repoFullName: input.repoFullName, dir, token, defaultBranch: input.defaultBranch });
+  try {
+    await clone({ repoFullName: input.repoFullName, dir, token, defaultBranch: input.defaultBranch });
+  } catch (e) {
+    const why = e instanceof Error ? e.message : String(e);
+    throw new Error(
+      `Couldn't clone ${input.repoFullName} (branch "${input.defaultBranch}"). Is the repository empty, or is its default branch different? — ${why}`,
+    );
+  }
 
   return bindProject(db, {
     repoFullName: input.repoFullName,
