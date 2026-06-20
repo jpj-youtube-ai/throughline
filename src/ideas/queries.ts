@@ -1,6 +1,6 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { ideas, users } from "../db/schema";
+import { ideas, users, votes } from "../db/schema";
 
 export interface VotingIdea {
   id: string;
@@ -9,11 +9,14 @@ export interface VotingIdea {
   feasibility: number | null;
   viability: number | null;
   authorLogin: string;
+  voteCount: number; // distinct approval votes so far (progress toward the gate)
   createdAt: Date;
 }
 
-// Lists ideas currently in voting (REQ-006 enriches this with vote progress and
-// progress-based sorting). For now: newest first.
+/**
+ * The idea board (REQ-006): ideas in voting with title, why, scores, author, and
+ * live vote progress, default-sorted by vote progress (closest to the gate first).
+ */
 export async function listVotingIdeas(db: Db): Promise<VotingIdea[]> {
   return db
     .select({
@@ -23,10 +26,13 @@ export async function listVotingIdeas(db: Db): Promise<VotingIdea[]> {
       feasibility: ideas.feasibility,
       viability: ideas.viability,
       authorLogin: users.githubLogin,
+      voteCount: sql<number>`cast(count(${votes.id}) as integer)`,
       createdAt: ideas.createdAt,
     })
     .from(ideas)
     .innerJoin(users, eq(ideas.authorId, users.id))
+    .leftJoin(votes, eq(votes.ideaId, ideas.id))
     .where(eq(ideas.state, "voting"))
-    .orderBy(desc(ideas.createdAt));
+    .groupBy(ideas.id, users.githubLogin)
+    .orderBy(desc(sql`count(${votes.id})`), desc(ideas.createdAt));
 }

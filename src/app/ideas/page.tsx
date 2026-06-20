@@ -1,5 +1,6 @@
 import { getDb } from "@/db/client";
 import { listVotingIdeas } from "@/ideas/queries";
+import { APPROVAL_GATE } from "@/ideas/gate";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +18,17 @@ export default async function IdeasPage() {
         <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: 16 }}>
           {ideas.map((i) => (
             <li key={i.id} style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-              <strong>{i.title}</strong> <small>by {i.authorLogin}</small>
-              {(i.feasibility != null || i.viability != null) && (
-                <small style={{ marginLeft: 8, color: "#666" }}>
-                  feasibility {i.feasibility ?? "–"} · viability {i.viability ?? "–"}
-                </small>
-              )}
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                <strong>{i.title}</strong>
+                <span style={{ whiteSpace: "nowrap", color: i.voteCount >= APPROVAL_GATE ? "#137333" : "#666" }}>
+                  {i.voteCount} / {APPROVAL_GATE} approvals
+                </span>
+              </div>
+              <small style={{ color: "#666" }}>
+                by {i.authorLogin}
+                {i.feasibility != null && ` · feasibility ${i.feasibility}`}
+                {i.viability != null && ` · viability ${i.viability}`}
+              </small>
               <p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{i.why}</p>
             </li>
           ))}

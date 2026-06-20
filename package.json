@@ -14,7 +14,7 @@
     "db:migrate": "tsx src/db/migrate.ts",
     "genesis": "tsx src/genesis/import.ts",
     "bind": "tsx src/cli/bind.ts",
-    "test": "tsx --test src/db/events.test.ts src/genesis/import.test.ts src/auth/users.test.ts src/project/bind.test.ts src/ideas/submit.test.ts"
+    "test": "tsx --test src/db/events.test.ts src/genesis/import.test.ts src/auth/users.test.ts src/project/bind.test.ts src/ideas/submit.test.ts src/ideas/queries.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
