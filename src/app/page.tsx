@@ -24,7 +24,7 @@ export default async function Home() {
       <h1>Throughline</h1>
       <p>Signed in as {session.user.name ?? session.user.login ?? "unknown"}</p>
       <p>
-        <a href="/ideas">Ideas →</a>
+        <a href="/ideas">Ideas →</a> &nbsp; <a href="/tasks">Tasks →</a>
       </p>
       <form
         action={async () => {
