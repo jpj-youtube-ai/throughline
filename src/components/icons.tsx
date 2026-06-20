@@ -75,6 +75,14 @@ export function ReconcileIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function HeartbeatIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M5 14v4M9.5 9v9M14 5v13M18.5 11v7" />
+    </Svg>
+  );
+}
+
 export function QuickWinIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>

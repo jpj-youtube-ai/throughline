@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   PulseIcon,
+  HeartbeatIcon,
   NarrativeIcon,
   IdeaIcon,
   TaskIcon,
@@ -20,6 +21,7 @@ const GROUPS = [
     label: "Story",
     items: [
       { href: "/pulse", label: "Pulse", Icon: PulseIcon },
+      { href: "/heartbeat", label: "Heartbeat", Icon: HeartbeatIcon },
       { href: "/narrative", label: "Narrative", Icon: NarrativeIcon },
     ],
   },
