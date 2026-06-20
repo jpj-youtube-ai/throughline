@@ -4,6 +4,7 @@ import type { Tx } from "./client";
 // The event taxonomy (SPEC §4). Every state change emits exactly one of these.
 export type EventType =
   | "project.genesis_imported"
+  | "project.bound"
   | "requirement.declared"
   | "requirement.status_changed"
   | "idea.parked"
