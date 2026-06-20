@@ -1,14 +1,12 @@
 import { parseArgs } from "node:util";
-import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { loadDotenv } from "../env";
 import { createDb } from "../db/client";
-import { bindProject } from "../project/bind";
-import { getInstallationToken } from "../github/app";
-import { ensureClone } from "../github/clone";
+import { bindAndClone } from "../project/connect";
 
 // Records the binding and provisions the local clone. The installation id is
-// obtained when the operator installs the GitHub App on the repo.
+// obtained when the operator installs the GitHub App on the repo. The Connect
+// page (REQ-002 UI) does the same via bindAndClone.
 //   npm run bind -- --repo owner/name --installation <id> [--branch main]
 async function main(): Promise<void> {
   loadDotenv();
@@ -22,20 +20,15 @@ async function main(): Promise<void> {
   if (!values.repo || !values.installation) {
     throw new Error("Usage: npm run bind -- --repo owner/name --installation <id> [--branch main]");
   }
-  const repoFullName = values.repo;
-  const installationId = Number(values.installation);
-  const defaultBranch = values.branch as string;
-  const cloneRoot = process.env.REPO_CLONE_ROOT ?? "./.clones";
-  const localClonePath = path.resolve(cloneRoot, repoFullName.replace("/", "__"));
 
   const { db, close } = createDb();
   try {
-    const bound = await bindProject(db, { repoFullName, installationId, defaultBranch, localClonePath });
-    console.error(`[bind] project bound to ${bound.repoFullName} (${bound.id})`);
-
-    const token = await getInstallationToken(installationId);
-    await ensureClone({ repoFullName, dir: localClonePath, token, defaultBranch });
-    console.error(`[bind] local clone ready at ${localClonePath}`);
+    const bound = await bindAndClone(db, {
+      repoFullName: values.repo,
+      installationId: Number(values.installation),
+      defaultBranch: values.branch as string,
+    });
+    console.error(`[bind] bound to ${bound.repoFullName} (${bound.id}) + local clone ready`);
   } finally {
     await close();
   }

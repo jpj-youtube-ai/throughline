@@ -53,16 +53,20 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-hairline bg-paper/85 px-8 py-3 backdrop-blur">
-          <div className="flex items-center gap-2 font-mono text-xs">
+          <a
+            href="/connect"
+            className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors hover:bg-paper-sunk"
+            title="Connect or view the linked repository"
+          >
             {repo ? (
               <>
                 <span className="size-1.5 rounded-full bg-shipped" />
                 <span className="text-ink">{repo}</span>
               </>
             ) : (
-              <span className="text-graphite">no repo bound</span>
+              <span className="text-spine-deep">Link a repository →</span>
             )}
-          </div>
+          </a>
         </header>
         <main className="mx-auto w-full max-w-5xl flex-1 px-8 py-9">{children}</main>
       </div>
