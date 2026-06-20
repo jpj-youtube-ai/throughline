@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PulseIcon, IdeaIcon, TaskIcon, SpecIcon, DriftIcon, ReconcileIcon } from "./icons";
+import { PulseIcon, NarrativeIcon, IdeaIcon, TaskIcon, SpecIcon, DriftIcon, ReconcileIcon } from "./icons";
 
 const ITEMS = [
   { href: "/pulse", label: "Pulse", Icon: PulseIcon },
+  { href: "/narrative", label: "Narrative", Icon: NarrativeIcon },
   { href: "/ideas", label: "Ideas", Icon: IdeaIcon },
   { href: "/tasks", label: "Tasks", Icon: TaskIcon },
   { href: "/spec", label: "Spec", Icon: SpecIcon },

@@ -75,6 +75,15 @@ export function ReconcileIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function NarrativeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M12 6.4C10.4 5.1 7.6 4.6 4.5 5v13c3.1-.4 5.9.1 7.5 1.4 1.6-1.3 4.4-1.8 7.5-1.4V5c-3.1-.4-5.9.1-7.5 1.4z" />
+      <path d="M12 6.4V18.4" />
+    </Svg>
+  );
+}
+
 export function SpecIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>
