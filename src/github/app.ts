@@ -50,3 +50,21 @@ export async function openIssue(
   const res = await octokit.rest.issues.create({ owner, repo, title, body });
   return { number: res.data.number, url: res.data.html_url };
 }
+
+// Fetch a PR's title and unified diff (REQ-013 drift detection).
+export async function getPullRequest(
+  installationId: number,
+  repoFullName: string,
+  prNumber: number,
+): Promise<{ title: string; diff: string }> {
+  const [owner, repo] = repoFullName.split("/");
+  const octokit = await getInstallationOctokit(installationId);
+  const meta = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
+  const diffRes = await octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}", {
+    owner,
+    repo,
+    pull_number: prNumber,
+    mediaType: { format: "diff" },
+  });
+  return { title: meta.data.title, diff: diffRes.data as unknown as string };
+}
