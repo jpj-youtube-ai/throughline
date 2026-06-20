@@ -3,6 +3,7 @@ import { loadDotenv } from "../env";
 import { createDb, type Db } from "../db/client";
 import { ideas } from "../db/schema";
 import { generateForApprovedIdea } from "../generation/orchestrate";
+import { createIssuesForTasks } from "../github/issues";
 
 // One pass: generate tasks for every approved idea. Once an idea generates it
 // moves to `generated`, so it won't be picked up again; a generation failure
@@ -13,6 +14,14 @@ async function tick(db: Db): Promise<void> {
     console.error(`[worker] generating for "${idea.title}" (${idea.id})…`);
     const r = await generateForApprovedIdea(db, idea.id);
     console.error(r.ok ? `[worker] ✓ ${r.taskKeys?.length ?? 0} task(s)` : `[worker] ✗ ${r.failure}`);
+  }
+
+  // Open GitHub issues for any tasks that don't have one yet (REQ-009).
+  try {
+    const { created } = await createIssuesForTasks(db);
+    if (created.length) console.error(`[worker] opened ${created.length} issue(s): ${created.join(", ")}`);
+  } catch (e) {
+    console.error("[worker] issue creation skipped:", e instanceof Error ? e.message : e);
   }
 }
 
