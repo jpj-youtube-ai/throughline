@@ -65,6 +65,15 @@ export function DriftIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function DigestIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M3.5 11.5L20.5 4l-7.5 16.5-2.2-7.3z" />
+      <path d="M20.5 4l-9.7 8.7" />
+    </Svg>
+  );
+}
+
 export function WhyQualityIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>

@@ -34,6 +34,8 @@ const VERB: Record<string, { verb: string; kind?: NodeKind }> = {
   "drift.resolved": { verb: "resolved drift on" },
   "spec.materialized": { verb: "materialized the spec", kind: "shipped" },
   "claude_md.synced": { verb: "synced CLAUDE.md" },
+  "narrative.generated": { verb: "regenerated the narrative" },
+  "digest.sent": { verb: "sent the digest" },
 };
 
 function truncate(s: string, n: number): string {

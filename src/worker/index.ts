@@ -5,6 +5,7 @@ import { ideas } from "../db/schema";
 import { generateForApprovedIdea } from "../generation/orchestrate";
 import { createIssuesForTasks } from "../github/issues";
 import { materializeSpec } from "../spec/materialize";
+import { sendDigestIfDue } from "../digest/send";
 
 // One pass: generate tasks for every approved idea. Once an idea generates it
 // moves to `generated`, so it won't be picked up again; a generation failure
@@ -35,6 +36,15 @@ async function tick(db: Db): Promise<void> {
     } catch (e) {
       console.error("[worker] spec materialization skipped:", e instanceof Error ? e.message : e);
     }
+  }
+
+  // Send the outbound digest if one is due (REQ-026). No-op unless the project
+  // has a webhook URL and a schedule configured.
+  try {
+    const d = await sendDigestIfDue(db);
+    if (d.sent) console.error(`[worker] digest sent (${d.eventCount} decisions)`);
+  } catch (e) {
+    console.error("[worker] digest skipped:", e instanceof Error ? e.message : e);
   }
 }
 

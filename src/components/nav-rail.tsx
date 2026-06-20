@@ -6,6 +6,7 @@ import {
   PulseIcon,
   HeartbeatIcon,
   NarrativeIcon,
+  DigestIcon,
   IdeaIcon,
   TaskIcon,
   QuickWinIcon,
@@ -24,6 +25,7 @@ const GROUPS = [
       { href: "/pulse", label: "Pulse", Icon: PulseIcon },
       { href: "/heartbeat", label: "Heartbeat", Icon: HeartbeatIcon },
       { href: "/narrative", label: "Narrative", Icon: NarrativeIcon },
+      { href: "/digest", label: "Digest", Icon: DigestIcon },
     ],
   },
   {
