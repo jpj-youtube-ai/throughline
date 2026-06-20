@@ -14,6 +14,7 @@ import {
   ProgressIcon,
   DriftIcon,
   ReconcileIcon,
+  WhyQualityIcon,
 } from "./icons";
 
 const GROUPS = [
@@ -46,6 +47,7 @@ const GROUPS = [
     items: [
       { href: "/drift", label: "Drift", Icon: DriftIcon },
       { href: "/reconcile", label: "Reconcile", Icon: ReconcileIcon },
+      { href: "/why-quality", label: "Why-quality", Icon: WhyQualityIcon },
     ],
   },
 ];

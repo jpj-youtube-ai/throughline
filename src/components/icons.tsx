@@ -65,6 +65,16 @@ export function DriftIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function WhyQualityIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M4 5h11M4 10h7M4 15h9" />
+      <circle cx="16.5" cy="15.5" r="3" />
+      <path d="M18.8 17.8L21 20" />
+    </Svg>
+  );
+}
+
 export function ReconcileIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>
