@@ -11,6 +11,7 @@ export interface VotingIdea {
   authorLogin: string;
   voteCount: number; // distinct approval votes so far (progress toward the gate)
   createdAt: Date;
+  lastActivityAt: Date; // for decay (REQ-023)
 }
 
 /**
@@ -28,6 +29,7 @@ export async function listVotingIdeas(db: Db): Promise<VotingIdea[]> {
       authorLogin: users.githubLogin,
       voteCount: sql<number>`cast(count(${votes.id}) as integer)`,
       createdAt: ideas.createdAt,
+      lastActivityAt: ideas.lastActivityAt,
     })
     .from(ideas)
     .innerJoin(users, eq(ideas.authorId, users.id))
