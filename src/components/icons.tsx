@@ -75,6 +75,17 @@ export function ReconcileIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function PipelineIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <circle cx="6" cy="6" r="2.2" />
+      <circle cx="6" cy="18" r="2.2" />
+      <circle cx="18" cy="12" r="2.2" />
+      <path d="M8.2 6h4.3a3 3 0 013 3v.8M8.2 18h4.3a3 3 0 003-3v-.8" />
+    </Svg>
+  );
+}
+
 export function ProgressIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>

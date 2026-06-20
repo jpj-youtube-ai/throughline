@@ -63,8 +63,12 @@ test("persistGeneration mints keys, links reqs, emits tasks.generated, marks ide
 
     const newReq = (await db.select().from(requirements).where(eq(requirements.key, "REQ-028")))[0];
     assert.equal(newReq.provenance, "voted");
-    assert.equal(newReq.status, "planned");
+    // Declared planned, then advanced to building in the same tx because it
+    // received TASK-002 (REQ-021 lifecycle).
+    assert.equal(newReq.status, "building");
     assert.equal(newReq.originIdeaId, ideaId);
+    // REQ-003 also got a task (TASK-001), so it is building too.
+    assert.equal((await db.select().from(requirements).where(eq(requirements.key, "REQ-003")))[0].status, "building");
 
     const allReqs = await db.select().from(requirements);
     const reqKeyById = new Map(allReqs.map((r) => [r.id, r.key]));

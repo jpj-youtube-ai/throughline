@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { ideas, requirements, tasks } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { reconcileRequirementStatus } from "../requirements/lifecycle";
 import type { GenerationOutput } from "../schema";
 
 export interface PersistGenerationInput {
@@ -95,6 +96,7 @@ export async function persistGeneration(
     let taskMax = maxNumber(existingTasks.map((t) => t.key));
 
     const taskKeys: string[] = [];
+    const touchedReqs = new Set<string>();
     for (const t of input.output.tasks) {
       const reqKey = suggestedToMinted.get(t.requirement_key) ?? t.requirement_key;
       const requirementId = keyToReqId.get(reqKey);
@@ -113,6 +115,7 @@ export async function persistGeneration(
         confidence: t.confidence,
       });
       taskKeys.push(taskKey);
+      touchedReqs.add(requirementId);
     }
 
     await emitEvent(tx, {
@@ -127,6 +130,12 @@ export async function persistGeneration(
         tokens: input.usage,
       },
     });
+
+    // Each requirement that received a task is now in progress (planned →
+    // building), in the same transaction as the task writes.
+    for (const requirementId of touchedReqs) {
+      await reconcileRequirementStatus(tx, requirementId, input.actorId ?? null);
+    }
 
     await tx.update(ideas).set({ state: "generated", updatedAt: new Date() }).where(eq(ideas.id, input.ideaId));
 

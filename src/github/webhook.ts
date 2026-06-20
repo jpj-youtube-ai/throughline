@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { reconcileRequirementStatus } from "../requirements/lifecycle";
 
 type GithubStatus = "open" | "closed";
 
@@ -73,7 +74,7 @@ export async function handleWebhook(
         ? eq(tasks.githubIssueNumber, target.issueNumber!)
         : eq(tasks.key, target.taskKey!);
     const [task] = await tx
-      .select({ id: tasks.id, key: tasks.key, status: tasks.githubStatus })
+      .select({ id: tasks.id, key: tasks.key, status: tasks.githubStatus, requirementId: tasks.requirementId })
       .from(tasks)
       .where(where)
       .for("update")
@@ -88,6 +89,11 @@ export async function handleWebhook(
       subjectId: task.id,
       payload: { from: task.status, to: target.to },
     });
+
+    // A merge can complete a requirement (→ shipped); a reopen can un-complete it
+    // (→ building). Derived from the task that just changed, in the same tx.
+    await reconcileRequirementStatus(tx, task.requirementId);
+
     return { changed: true, taskKey: task.key, to: target.to };
   });
 }
