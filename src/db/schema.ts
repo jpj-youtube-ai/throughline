@@ -7,6 +7,7 @@ import {
   text,
   integer,
   bigint,
+  bigserial,
   jsonb,
   timestamp,
   unique,
@@ -125,6 +126,9 @@ export const events = pgTable("events", {
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
   rationale: text("rationale"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Monotonic total order — created_at alone ties within a transaction (shared
+  // now()), so the activity feed and narrative order by seq (REQ-019).
+  seq: bigserial("seq", { mode: "number" }).notNull(),
 });
 
 export const narratives = pgTable("narratives", {

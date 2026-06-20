@@ -9,3 +9,7 @@ next-env.d.ts
 # secrets — .env.example IS committed
 .env
 .env*.local
+
+# local preview / e2e artifacts
+.playwright-mcp/
+*.local.png

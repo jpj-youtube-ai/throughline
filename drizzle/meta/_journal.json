@@ -8,6 +8,13 @@
       "when": 1781946477360,
       "tag": "0000_yielding_komodo",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781956516715,
+      "tag": "0001_aromatic_domino",
+      "breakpoints": true
     }
   ]
 }

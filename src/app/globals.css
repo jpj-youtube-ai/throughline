@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+/* ── Throughline design tokens ───────────────────────────────────────────
+   "Iron-gall ink on ledger paper." The product is an append-only record of
+   decisions; the surface is an archival ledger, and the verdigris spine is the
+   throughline — the causal thread running through every timeline view. */
+@theme {
+  --color-paper: #eceae3; /* cool bone ledger, not warm cream */
+  --color-paper-raised: #f4f2ec; /* a lifted leaf */
+  --color-paper-sunk: #e4e1d8; /* a recessed well */
+  --color-ink: #1a1d2e; /* fountain-pen indigo-black */
+  --color-ink-soft: #3b3f4f;
+  --color-graphite: #5a5e6b; /* secondary text */
+  --color-hairline: #d6d2c8; /* rules and borders */
+  --color-spine: #2e7d6b; /* verdigris — the throughline */
+  --color-spine-deep: #245f52;
+  --color-spine-wash: #e0e9e4; /* spine tint for fills/hovers */
+
+  /* status, kept muted and ink-compatible — never neon, never decorative */
+  --color-shipped: #2f7d4f;
+  --color-planned: #b0790f;
+  --color-risk: #b23a2e;
+  --color-shipped-wash: #e4ede5;
+  --color-planned-wash: #f1e9d6;
+  --color-risk-wash: #f1e0dc;
+
+  --font-display: var(--font-archivo), "Archivo", system-ui, sans-serif;
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+  --font-serif: var(--font-plex-serif), "IBM Plex Serif", Georgia, serif;
+
+  --radius-leaf: 7px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  border-color: var(--color-hairline);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-spine);
+  color: var(--color-paper-raised);
+}
+
+/* The one characterful face, used only for large headers and the wordmark.
+   Archivo's width axis gives the wide, architectural "archive" feel. */
+.font-display {
+  font-family: var(--font-display);
+  font-stretch: 125%;
+  letter-spacing: -0.01em;
+}
+
+/* Identifiers are the vocabulary of Throughline — every REQ/TASK key, timestamp,
+   and metric is set in the mono ledger voice. */
+.font-mono {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" 1;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-spine);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── The throughline spine ───────────────────────────────────────────────
+   A continuous verdigris thread with event nodes; the "why" hangs off it.
+   Used by the activity feed, narrative, and heartbeat. */
+.spine {
+  position: relative;
+  padding-left: 28px;
+}
+.spine::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: linear-gradient(var(--color-spine), var(--color-spine-deep));
+  border-radius: 2px;
+}
+.spine-node {
+  position: relative;
+}
+.spine-node::before {
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: 7px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--color-paper);
+  border: 2px solid var(--color-spine);
+  box-shadow: 0 0 0 3px var(--color-paper);
+}
+.spine-node[data-kind="merge"]::before,
+.spine-node[data-kind="shipped"]::before {
+  background: var(--color-spine);
+}
+.spine-node[data-kind="risk"]::before {
+  border-color: var(--color-risk);
+}
