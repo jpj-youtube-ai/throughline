@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
-    "test": "tsx --test src/db/events.test.ts"
+    "genesis": "tsx src/genesis/import.ts",
+    "test": "tsx --test src/db/events.test.ts src/genesis/import.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
