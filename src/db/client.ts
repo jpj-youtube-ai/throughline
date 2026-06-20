@@ -30,6 +30,14 @@ export function createDb(): DbHandle {
   };
 }
 
+// Memoized production database for the app runtime (a single pool, reused
+// across requests). Tests use createTestDb() instead.
+let appDb: DbHandle | null = null;
+export function getDb(): Db {
+  if (!appDb) appDb = createDb();
+  return appDb.db;
+}
+
 // Ephemeral in-memory Postgres (PGlite) with the full schema applied — for tests
 // and local experimentation, no external database required.
 export async function createTestDb(): Promise<DbHandle> {

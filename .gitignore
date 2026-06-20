@@ -1,5 +1,10 @@
 node_modules/
 out/
+.next/
 *.log
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets — .env.example IS committed
 .env
-.env.*
+.env*.local
