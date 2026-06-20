@@ -4,15 +4,18 @@ import { createDb, type Db } from "../db/client";
 import { ideas } from "../db/schema";
 import { generateForApprovedIdea } from "../generation/orchestrate";
 import { createIssuesForTasks } from "../github/issues";
+import { materializeSpec } from "../spec/materialize";
 
 // One pass: generate tasks for every approved idea. Once an idea generates it
 // moves to `generated`, so it won't be picked up again; a generation failure
 // leaves it `approved` to retry next tick (REQ-008).
 async function tick(db: Db): Promise<void> {
   const pending = await db.select({ id: ideas.id, title: ideas.title }).from(ideas).where(eq(ideas.state, "approved"));
+  let didGenerate = false;
   for (const idea of pending) {
     console.error(`[worker] generating for "${idea.title}" (${idea.id})…`);
     const r = await generateForApprovedIdea(db, idea.id);
+    if (r.ok) didGenerate = true;
     console.error(r.ok ? `[worker] ✓ ${r.taskKeys?.length ?? 0} task(s)` : `[worker] ✗ ${r.failure}`);
   }
 
@@ -22,6 +25,16 @@ async function tick(db: Db): Promise<void> {
     if (created.length) console.error(`[worker] opened ${created.length} issue(s): ${created.join(", ")}`);
   } catch (e) {
     console.error("[worker] issue creation skipped:", e instanceof Error ? e.message : e);
+  }
+
+  // Re-materialize the spec when requirements/tasks changed (REQ-012).
+  if (didGenerate) {
+    try {
+      const m = await materializeSpec(db);
+      console.error(`[worker] spec materialized (${m.requirementCount} reqs, ${m.sha.slice(0, 7)})`);
+    } catch (e) {
+      console.error("[worker] spec materialization skipped:", e instanceof Error ? e.message : e);
+    }
   }
 }
 
