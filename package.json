@@ -6,7 +6,10 @@
   "description": "Standalone task-generation script (core of REQ-008) for Throughline.",
   "scripts": {
     "generate": "tsx src/generate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "test": "tsx --test src/db/events.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
