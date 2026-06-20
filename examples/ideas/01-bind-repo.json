@@ -1,0 +1,6 @@
+{
+  "title": "Operator can bind the project to a GitHub repo",
+  "why": "Nothing works until the board knows which repo it's driving — this is the setup step that creates the project singleton and the local clone.",
+  "feasibility": 8,
+  "viability": 10
+}

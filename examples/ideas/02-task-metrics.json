@@ -1,0 +1,6 @@
+{
+  "title": "Show each task's three metrics on the task board",
+  "why": "The board already lists tasks but not their effort/risk/confidence — surfacing them is what makes the quick-win view and \"what to pick up\" possible.",
+  "feasibility": 7,
+  "viability": 7
+}

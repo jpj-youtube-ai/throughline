@@ -1,0 +1,25 @@
+{
+  "name": "throughline-generate",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Standalone task-generation script (core of REQ-008) for Throughline.",
+  "scripts": {
+    "generate": "tsx src/generate.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
+    "@electric-sql/pglite": "^0.5.3",
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.22.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^0.31.10",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}
