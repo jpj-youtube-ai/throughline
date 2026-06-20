@@ -23,6 +23,9 @@ export default async function Home() {
     <main style={{ padding: 32 }}>
       <h1>Throughline</h1>
       <p>Signed in as {session.user.name ?? session.user.login ?? "unknown"}</p>
+      <p>
+        <a href="/ideas">Ideas →</a>
+      </p>
       <form
         action={async () => {
           "use server";
