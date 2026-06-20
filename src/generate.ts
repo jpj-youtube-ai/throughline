@@ -1,13 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import type Anthropic from "@anthropic-ai/sdk";
 import { loadDotenv } from "./env";
 import { parseConfig } from "./config";
 import { loadIdea, loadSpec, loadConventions } from "./inputs";
 import { buildSlice } from "./repoSlice";
-import { GenerationOutputSchema, semanticErrors } from "./schema";
-import { SYSTEM_PROMPT, buildUserMessage, correctiveMessage } from "./prompt";
-import { createClient, callModel } from "./anthropic";
+import { SYSTEM_PROMPT, buildUserMessage } from "./prompt";
+import { generateTasks } from "./generation/run";
 import { estimateTokens } from "./tokens";
 
 function log(verbose: boolean, ...args: unknown[]): void {
@@ -72,92 +70,45 @@ async function main(): Promise<void> {
     return;
   }
 
-  const client = createClient();
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: userMessage }];
+  const result = await generateTasks({
+    modelId: cfg.modelId,
+    userMessage,
+    existingKeys: spec.existingKeys,
+    nextNumber: spec.nextNumber,
+    maxRetries: cfg.maxRetries,
+    thinking: cfg.thinking,
+    onLog: (m) => log(cfg.verbose, m),
+  });
 
-  let lastFailure = "unknown error";
-  let usage: { input_tokens: number; output_tokens: number } | null = null;
-
-  for (let attempt = 0; attempt <= cfg.maxRetries; attempt++) {
-    log(cfg.verbose, `attempt ${attempt + 1}/${cfg.maxRetries + 1} → ${cfg.modelId}`);
-    const result = await callModel({
-      client,
-      modelId: cfg.modelId,
-      system: SYSTEM_PROMPT,
-      messages,
-      maxTokens: 16000,
-      thinking: cfg.thinking,
-    });
-    if (result.message?.usage) {
-      usage = {
-        input_tokens: result.message.usage.input_tokens,
-        output_tokens: result.message.usage.output_tokens,
-      };
-    }
-
-    if (result.failure || result.obj == null) {
-      lastFailure = result.failure ?? "no output produced";
-      log(cfg.verbose, `failure: ${lastFailure}`);
-      if (!result.retryable) break; // API/transport error or refusal — retrying won't help
-      if (result.message) messages.push({ role: "assistant", content: result.message.content });
-      messages.push({ role: "user", content: correctiveMessage([lastFailure]) });
-      continue;
-    }
-
-    const parsed = GenerationOutputSchema.safeParse(result.obj);
-    if (!parsed.success) {
-      const errs = parsed.error.issues.map(
-        (i) => `${i.path.join(".") || "(root)"}: ${i.message}`,
-      );
-      lastFailure = `schema validation: ${errs.join("; ")}`;
-      log(cfg.verbose, lastFailure);
-      messages.push({ role: "assistant", content: result.message!.content });
-      messages.push({ role: "user", content: correctiveMessage(errs) });
-      continue;
-    }
-
-    const errs = semanticErrors(parsed.data, {
-      existingKeys: spec.existingKeys,
-      nextNumber: spec.nextNumber,
-    });
-    if (errs.length) {
-      lastFailure = `semantic validation: ${errs.join("; ")}`;
-      log(cfg.verbose, lastFailure);
-      messages.push({ role: "assistant", content: result.message!.content });
-      messages.push({ role: "user", content: correctiveMessage(errs) });
-      continue;
-    }
-
-    // Success — assemble output and write it.
-    const output = {
-      idea: { title: idea.title },
-      model: cfg.modelId,
-      generated_at: new Date().toISOString(),
-      usage,
-      new_requirements: parsed.data.new_requirements.map((nr) => ({
-        key: nr.key,
-        title: nr.title,
-        description: nr.description,
-        provenance: "voted" as const,
-      })),
-      tasks: parsed.data.tasks,
-    };
-    const json = JSON.stringify(output, null, 2);
-    const summary = `${output.tasks.length} task(s), ${output.new_requirements.length} new requirement(s)`;
-    if (cfg.outPath) {
-      fs.mkdirSync(path.dirname(cfg.outPath), { recursive: true });
-      fs.writeFileSync(cfg.outPath, json + "\n", "utf8");
-      console.error(`[generate] ${summary} → ${cfg.outPath}`);
-    } else {
-      process.stdout.write(json + "\n");
-      console.error(`[generate] ${summary} (${cfg.modelId})`);
-    }
-    return;
+  if (!result.ok) {
+    console.error(`\ngeneration failed — retry`);
+    console.error(`last reason: ${result.failure}`);
+    process.exit(1);
   }
 
-  console.error(`\ngeneration failed — retry`);
-  console.error(`last reason: ${lastFailure}`);
-  process.exit(1);
+  const output = {
+    idea: { title: idea.title },
+    model: result.model,
+    generated_at: new Date().toISOString(),
+    usage: result.usage,
+    new_requirements: result.output.new_requirements.map((nr) => ({
+      key: nr.key,
+      title: nr.title,
+      description: nr.description,
+      provenance: "voted" as const,
+    })),
+    tasks: result.output.tasks,
+  };
+  const json = JSON.stringify(output, null, 2);
+  const summary = `${output.tasks.length} task(s), ${output.new_requirements.length} new requirement(s)`;
+  if (cfg.outPath) {
+    fs.mkdirSync(path.dirname(cfg.outPath), { recursive: true });
+    fs.writeFileSync(cfg.outPath, json + "\n", "utf8");
+    console.error(`[generate] ${summary} → ${cfg.outPath}`);
+  } else {
+    process.stdout.write(json + "\n");
+    console.error(`[generate] ${summary} (${cfg.modelId})`);
+  }
 }
 
 main().catch((e) => {
