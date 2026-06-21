@@ -60,4 +60,4 @@ A task is done when its PR merges — a fact that comes from GitHub via webhook,
 - Don't reintroduce the spec (or the log) as a hand-maintained truth document.
 - Don't let the board become canonical for issue existence or completion.
 - Don't build the full 27 requirements in one pass because the spec lists them — the spec is thorough so the destination is clear, not so the first sprint fills it.
-- Don't add notifications as an in-app system; the only push is the outbound digest (REQ-026).
+- Don't add an in-app notification/push system. The digest (REQ-026) is an in-app, on-demand summary you read on the board — there is no outbound channel.
