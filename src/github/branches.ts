@@ -47,6 +47,19 @@ export async function createBranch(
 }
 
 /**
+ * The kickoff prompt posted to a task's issue when its branch is created (REQ-009).
+ * References the issue's own pointers/acceptance rather than duplicating them.
+ */
+export function kickoffComment(taskKey: string, branchName: string): string {
+  return [
+    `🤖 Branch \`${branchName}\` is ready.`,
+    "",
+    "**Prompt for Claude Code:**",
+    `> Work on ${taskKey} on branch \`${branchName}\`, following the pointers and acceptance check in this issue and the repo's CLAUDE.md conventions. Open a PR titled \`[${taskKey}] …\` when done.`,
+  ].join("\n");
+}
+
+/**
  * Ensure a branch exists for every claimed task that doesn't have one yet
  * (branch_created_at IS NULL), from the project's default branch. Mirrors
  * createIssuesForTasks: idempotent, runs OUTSIDE any DB transaction (external

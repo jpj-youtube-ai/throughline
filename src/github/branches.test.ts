@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
 import { project, tasks, requirements } from "../db/schema";
-import { createBranch, createBranchesForClaimedTasks, type GitRefClient, type CreateBranchFn } from "./branches";
+import { createBranch, createBranchesForClaimedTasks, kickoffComment, type GitRefClient, type CreateBranchFn } from "./branches";
 
 const okClient: GitRefClient = {
   rest: {
@@ -100,4 +100,12 @@ test("createBranchesForClaimedTasks throws when no project is bound", async () =
   } finally {
     await close();
   }
+});
+
+test("kickoffComment includes the task key, the branch, and the PR-title convention", () => {
+  const c = kickoffComment("TASK-007", "task-007-do-the-thing");
+  assert.match(c, /TASK-007/);
+  assert.match(c, /task-007-do-the-thing/);
+  assert.match(c, /\[TASK-007\]/); // the [TASK-NNN] PR title convention
+  assert.match(c, /Claude Code/);
 });

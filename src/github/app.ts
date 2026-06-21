@@ -51,6 +51,19 @@ export async function openIssue(
   return { number: res.data.number, url: res.data.html_url };
 }
 
+// Post a comment on an existing issue on the bound repo (REQ-009). Used to drop a
+// Claude Code kickoff prompt when a task's branch is created.
+export async function commentOnIssue(
+  installationId: number,
+  repoFullName: string,
+  issueNumber: number,
+  body: string,
+): Promise<void> {
+  const [owner, repo] = repoFullName.split("/");
+  const octokit = await getInstallationOctokit(installationId);
+  await octokit.rest.issues.createComment({ owner, repo, issue_number: issueNumber, body });
+}
+
 // Fetch a PR's title and unified diff (REQ-013 drift detection).
 export async function getPullRequest(
   installationId: number,
