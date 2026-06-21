@@ -5,6 +5,7 @@ import { emitEvent } from "../db/events";
 import { reconcileRequirementStatus } from "../requirements/lifecycle";
 import type { GenerationOutput } from "../schema";
 import { pad3, maxNumber, renderBody } from "./persist-helpers";
+import type { Usage } from "./run";
 
 export interface PersistGenerationInput {
   ideaId: string;
@@ -125,5 +126,68 @@ export async function persistGeneration(
     await tx.update(ideas).set({ state: "generated", updatedAt: new Date() }).where(eq(ideas.id, input.ideaId));
 
     return { taskKeys, newRequirementKeys };
+  });
+}
+
+export interface PersistForRequirementInput {
+  reqId: string;
+  output: GenerationOutput;
+  model: string;
+  usage: Usage;
+  actorId?: string | null;
+}
+
+/**
+ * Persist generation for a single requirement (REQ-008, requirement-driven): mint
+ * TASK-NNN for each output task, ALL linked to reqId (the requirement is the unit —
+ * the model's requirement_key and new_requirements are ignored), emit one
+ * tasks.generated (subject = the requirement), and advance it planned→building —
+ * one transaction. Refuses if the requirement already has tasks. No idea involved.
+ */
+export async function persistGenerationForRequirement(
+  db: Db,
+  input: PersistForRequirementInput,
+): Promise<{ taskKeys: string[] }> {
+  return db.transaction(async (tx) => {
+    const [req] = await tx
+      .select({ id: requirements.id })
+      .from(requirements)
+      .where(eq(requirements.id, input.reqId))
+      .for("update")
+      .limit(1);
+    if (!req) throw new Error("Requirement not found.");
+
+    const existingForReq = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.requirementId, input.reqId)).limit(1);
+    if (existingForReq.length > 0) throw new Error("Requirement already has tasks — refusing to generate.");
+
+    const allTasks = await tx.select({ key: tasks.key }).from(tasks);
+    let taskMax = maxNumber(allTasks.map((t) => t.key));
+
+    const taskKeys: string[] = [];
+    for (const t of input.output.tasks) {
+      const taskKey = `TASK-${pad3(++taskMax)}`;
+      await tx.insert(tasks).values({
+        key: taskKey,
+        title: t.title,
+        body: renderBody(t.body),
+        requirementId: input.reqId, // forced link — the requirement is the unit
+        effort: t.effort,
+        risk: t.risk,
+        confidence: t.confidence,
+      });
+      taskKeys.push(taskKey);
+    }
+
+    await emitEvent(tx, {
+      type: "tasks.generated",
+      subjectType: "requirement",
+      subjectId: input.reqId,
+      actorId: input.actorId ?? null,
+      payload: { task_keys: taskKeys, req_keys: [], model: input.model, tokens: input.usage },
+    });
+
+    await reconcileRequirementStatus(tx, input.reqId, input.actorId ?? null);
+
+    return { taskKeys };
   });
 }
