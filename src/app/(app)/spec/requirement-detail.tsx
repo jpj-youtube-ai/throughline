@@ -1,6 +1,7 @@
 import { getDb } from "@/db/client";
 import { getRequirementDetail } from "@/spec/detail";
 import { Pill, Empty, type Tone } from "@/components/ui";
+import { SpecGenerate } from "./spec-generate";
 
 const STATUS_LABEL: Record<string, string> = { shipped: "shipped", building: "in progress", planned: "not started" };
 const PROV_LABEL: Record<string, string> = { imported: "genesis", voted: "voted", drift: "drift" };
@@ -23,7 +24,7 @@ export async function RequirementDetail({ reqKey }: { reqKey: string }) {
       <div className="mt-5 border-t border-hairline pt-4">
         <h3 className="font-mono text-[11px] uppercase tracking-[0.18em] text-graphite">Tasks</h3>
         {r.tasks.length === 0 ? (
-          <p className="mt-3 text-[13px] text-graphite">No tasks yet.</p>
+          <SpecGenerate reqKey={r.key} />
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
             {r.tasks.map((t) => (
