@@ -4,6 +4,7 @@ import { createDb, type Db } from "../db/client";
 import { ideas } from "../db/schema";
 import { generateForApprovedIdea } from "../generation/orchestrate";
 import { createIssuesForTasks } from "../github/issues";
+import { createBranchesForClaimedTasks } from "../github/branches";
 import { materializeSpec } from "../spec/materialize";
 import { sendDigestIfDue } from "../digest/send";
 
@@ -26,6 +27,14 @@ async function tick(db: Db): Promise<void> {
     if (created.length) console.error(`[worker] opened ${created.length} issue(s): ${created.join(", ")}`);
   } catch (e) {
     console.error("[worker] issue creation skipped:", e instanceof Error ? e.message : e);
+  }
+
+  // Create branches for any claimed task that doesn't have one yet (REQ-011).
+  try {
+    const { created } = await createBranchesForClaimedTasks(db);
+    if (created.length) console.error(`[worker] created ${created.length} branch(es): ${created.join(", ")}`);
+  } catch (e) {
+    console.error("[worker] branch creation skipped:", e instanceof Error ? e.message : e);
   }
 
   // Re-materialize the spec when requirements/tasks changed (REQ-012).
