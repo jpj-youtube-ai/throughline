@@ -4,6 +4,7 @@ import { ideas, requirements, tasks } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { reconcileRequirementStatus } from "../requirements/lifecycle";
 import type { GenerationOutput } from "../schema";
+import { pad3, maxNumber, renderBody } from "./persist-helpers";
 
 export interface PersistGenerationInput {
   ideaId: string;
@@ -16,22 +17,6 @@ export interface PersistGenerationInput {
 export interface PersistGenerationResult {
   taskKeys: string[];
   newRequirementKeys: string[];
-}
-
-const pad3 = (n: number): string => String(n).padStart(3, "0");
-
-function maxNumber(keys: string[]): number {
-  let max = 0;
-  for (const k of keys) {
-    const m = /-(\d+)$/.exec(k);
-    if (m) max = Math.max(max, Number(m[1]));
-  }
-  return max;
-}
-
-function renderBody(body: { pointers: string[]; acceptance_check: string }): string {
-  const pointers = body.pointers.map((p) => `- ${p}`).join("\n");
-  return `**Pointers**\n${pointers}\n\n**Acceptance check:** ${body.acceptance_check}`;
 }
 
 /**
