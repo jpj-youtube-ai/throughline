@@ -31,6 +31,19 @@ The dashboard maps to no existing requirement. Per the user's decision we **decl
 
 ---
 
+## Visual design (ui-ux-pro-max)
+
+Guidance applied within the existing "ledger" design system (do **not** introduce a new theme — reuse `text-spine`, `paper-raised`, `hairline`, `rounded-leaf`, `font-display`, `font-mono`, `Pill`):
+
+- **Chart type matches data type.** Heartbeat is a *trend over time* → thin **Sparkline** (line only, no fill — matches the spine/hairline motif). Progress is *performance vs. target* (done/scope) → a thin horizontal **Meter** (track + filled bar) with the ratio + % always visible as **text**. Do not use a sparkline for Progress.
+- **Numbers as tabular figures.** Headline stats use `tabular-nums` so digits align and counts don't cause layout shift.
+- **Never color-alone.** Status reads from text and `Pill` dots (shipped/building/planned, "no drift" vs "N flags", "spec STALE" vs "fresh"), not hue alone.
+- **Visual hierarchy by size/weight, not color.** Title = quiet mono uppercase eyebrow (graphite); headline stat = focal (`font-display`, larger, ink); preview = small graphite. Page `h1` (PageHeader) → group `<h2>` is a sequential heading order.
+- **Affordance.** The whole card is a `Link` (pointer cursor); hover lifts it with a subtle background + border change and reveals the arrow. Transitions stay 150ms.
+- **Static viz, readable immediately.** Sparkline/Meter render no entrance animation (no reduced-motion concern); their values are always present as text.
+
+---
+
 ## File Structure
 
 **New:**
@@ -47,6 +60,7 @@ The dashboard maps to no existing requirement. Per the user's decision we **decl
 - `src/dashboard/summarize.ts` — pure card summarizers (`eventsSince`, `taskBreakdown`, `topTasks`, `reqBreakdown`, `pct`).
 - `src/dashboard/summarize.test.ts`
 - `src/components/dashboard-card.tsx` — `DashboardCard` presentational shell.
+- `src/components/meter.tsx` — `Meter` (thin performance-vs-target bar for the Progress card).
 - `src/app/(app)/dashboard/page.tsx` — the page.
 
 **Modified:**
@@ -774,17 +788,21 @@ git commit -m "[TASK-031] dashboard card summarizers (REQ-028)"
 
 ---
 
-## Task 7: DashboardCard shell + DashboardIcon
+## Task 7: DashboardCard shell + Meter + DashboardIcon
 
 **Files:**
 - Create: `src/components/dashboard-card.tsx`
+- Create: `src/components/meter.tsx`
 - Modify: `src/components/icons.tsx` (add `DashboardIcon`)
 
 **Interfaces:**
 - Consumes: `ArrowIcon` from `src/components/icons.tsx`.
-- Produces: `DashboardCard({ href: string; Icon: ComponentType<SVGProps<SVGSVGElement>>; title: string; stat: ReactNode; children?: ReactNode })`; `DashboardIcon(props: SVGProps<SVGSVGElement>)`.
+- Produces:
+  - `DashboardCard({ href: string; Icon: ComponentType<SVGProps<SVGSVGElement>>; title: string; stat: ReactNode; children?: ReactNode })`
+  - `Meter({ value: number; max: number; className?: string })`
+  - `DashboardIcon(props: SVGProps<SVGSVGElement>)`
 
-> Presentational only — no unit test. Verified by `npm run typecheck` here and visually in Task 8/10.
+> Presentational only — no unit test. Verified by `npm run typecheck` here and visually in Task 8/10. Applies the **Visual design (ui-ux-pro-max)** section: tabular figures on the stat, hierarchy by size/weight, subtle hover lift, color-never-alone.
 
 - [ ] **Step 1: Add `DashboardIcon` to `src/components/icons.tsx`**
 
@@ -827,28 +845,50 @@ export function DashboardCard({
   return (
     <Link
       href={href}
-      className="group flex flex-col rounded-leaf border border-hairline bg-paper-raised p-4 transition-colors hover:bg-paper-sunk"
+      className="group flex flex-col rounded-leaf border border-hairline bg-paper-raised p-4 transition-colors duration-150 hover:bg-paper-sunk hover:border-spine/40"
     >
       <div className="flex items-center gap-2 text-graphite">
         <Icon className="text-spine" />
         <span className="font-mono text-[11px] uppercase tracking-[0.14em]">{title}</span>
         <ArrowIcon className="ml-auto size-4 text-graphite opacity-0 transition-opacity group-hover:opacity-100" />
       </div>
-      <div className="font-display mt-2 text-lg text-ink">{stat}</div>
+      <div className="font-display mt-2 text-lg text-ink tabular-nums">{stat}</div>
       {children && <div className="mt-2 text-[13px] text-graphite">{children}</div>}
     </Link>
   );
 }
 ```
 
-- [ ] **Step 3: Typecheck and commit**
+- [ ] **Step 3: Write the Meter component**
+
+A thin performance-vs-target bar (track + filled portion in the spine accent), value-clamped. The numeric value is always shown as text by the card's stat — the Meter is the visual reinforcement.
+
+```tsx
+// src/components/meter.tsx
+export function Meter({ value, max, className = "" }: { value: number; max: number; className?: string }) {
+  const fraction = max <= 0 ? 0 : Math.max(0, Math.min(1, value / max));
+  return (
+    <div
+      className={`h-1.5 w-full overflow-hidden rounded-full bg-paper-sunk ${className}`}
+      role="progressbar"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={max}
+    >
+      <div className="h-full rounded-full bg-spine" style={{ width: `${fraction * 100}%` }} />
+    </div>
+  );
+}
+```
+
+- [ ] **Step 4: Typecheck and commit**
 
 Run: `npm run typecheck`
 Expected: no errors.
 
 ```bash
-git add src/components/dashboard-card.tsx src/components/icons.tsx
-git commit -m "[TASK-031] DashboardCard shell + DashboardIcon (REQ-028)"
+git add src/components/dashboard-card.tsx src/components/meter.tsx src/components/icons.tsx
+git commit -m "[TASK-031] DashboardCard shell + Meter + DashboardIcon (REQ-028)"
 ```
 
 ---
@@ -890,6 +930,7 @@ import {
 import { PageHeader, Pill } from "@/components/ui";
 import { DashboardCard } from "@/components/dashboard-card";
 import { Sparkline } from "@/components/sparkline";
+import { Meter } from "@/components/meter";
 import { eventsSince, taskBreakdown, topTasks, reqBreakdown, pct } from "@/dashboard/summarize";
 
 export const dynamic = "force-dynamic";
@@ -1048,9 +1089,7 @@ export default async function DashboardPage() {
           </DashboardCard>
 
           <DashboardCard href="/burnup" Icon={ProgressIcon} title="Progress" stat={`${burnup.done}/${burnup.scope} merged · ${burnPct}%`}>
-            <span className="text-spine">
-              <Sparkline values={burnup.points.map((p) => p.done)} />
-            </span>
+            <Meter value={burnup.done} max={burnup.scope} />
           </DashboardCard>
         </Group>
 
