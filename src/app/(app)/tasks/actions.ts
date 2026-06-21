@@ -20,13 +20,19 @@ export async function claim(_prev: ClaimState, formData: FormData): Promise<Clai
   const db = getDb();
 
   const result = await claimTask(db, taskId, session.user.id);
-  if (result.claimed) {
-    // External, best-effort (after the claim tx); the worker sweep retries failures.
-    try {
-      await createBranchesForClaimedTasks(db);
-    } catch {
-      // claim holds regardless; leave branch_created_at null for the next sweep.
-    }
+  if (!result.claimed) {
+    // Lost the race — someone else holds it. Revalidate so the panel shows the
+    // real owner; report failure (no branch warning — the user doesn't hold it).
+    revalidatePath("/tasks");
+    revalidatePath("/dashboard");
+    return { ok: false, error: "Task is already claimed." };
+  }
+
+  // External, best-effort (after the claim tx); the worker sweep retries failures.
+  try {
+    await createBranchesForClaimedTasks(db);
+  } catch {
+    // claim holds regardless; leave branch_created_at null for the next sweep.
   }
 
   revalidatePath("/tasks");
