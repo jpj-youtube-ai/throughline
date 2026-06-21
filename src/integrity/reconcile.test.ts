@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createTestDb } from "../db/client";
 import { requirements, tasks } from "../db/schema";
-import { reconcileSpec, reconcileStructural } from "./reconcile";
+import { reconcileSpec, reconcileStructural, structuralReconciliationForProject } from "./reconcile";
 
 test("reconcileSpec flags a mismatch (ignoring trailing whitespace)", () => {
   assert.equal(reconcileSpec("same", "same").stale, false);
@@ -33,6 +33,22 @@ test("reconcileStructural reports stale when SPEC.md differs from the requiremen
     // Feeding back exactly what the requirements render to is up to date.
     const current = await reconcileStructural(db, stale.rendered);
     assert.equal(current.specStale, false);
+  } finally {
+    await close();
+  }
+});
+
+test("structuralReconciliationForProject reports unbound when no project exists", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    await db.insert(requirements).values([
+      { key: "REQ-001", title: "a", description: "", provenance: "imported" },
+      { key: "REQ-002", title: "b", description: "", provenance: "imported" },
+    ]);
+    const r = await structuralReconciliationForProject(db);
+    assert.equal(r.bound, false);
+    assert.equal(r.specStale, false);
+    assert.equal(r.requirementCount, 2);
   } finally {
     await close();
   }

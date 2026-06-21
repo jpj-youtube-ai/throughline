@@ -87,6 +87,28 @@ export async function detectUnmappedCode(args: {
   }
 }
 
+export interface DashboardReconciliation {
+  bound: boolean;
+  specStale: boolean;
+  requirementCount: number;
+}
+
+/**
+ * The dashboard's cheap reconcile read: structural staleness + requirement count,
+ * no LLM. Returns bound:false (and skips the file read) when no repo is bound yet.
+ */
+export async function structuralReconciliationForProject(db: Db): Promise<DashboardReconciliation> {
+  const [proj] = await db.select().from(project).limit(1);
+  if (!proj) {
+    const reqs = await db.select({ key: requirements.key }).from(requirements);
+    return { bound: false, specStale: false, requirementCount: reqs.length };
+  }
+  const specFile = path.join(proj.localClonePath, proj.specPath);
+  const currentSpec = fs.existsSync(specFile) ? fs.readFileSync(specFile, "utf8") : "";
+  const s = await reconcileStructural(db, currentSpec);
+  return { bound: true, specStale: s.specStale, requirementCount: s.requirementCount };
+}
+
 export interface ReconciliationReport {
   specStale: boolean;
   requirementCount: number;
