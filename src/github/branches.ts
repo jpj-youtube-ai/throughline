@@ -1,0 +1,75 @@
+import { and, eq, isNull, isNotNull } from "drizzle-orm";
+import type { Db } from "../db/client";
+import { tasks, project } from "../db/schema";
+import { getInstallationOctokit } from "./app";
+
+// The slice of the octokit git API we use — typed so domain code needs no `any`
+// and tests can supply an honest fake.
+export interface GitRefClient {
+  rest: {
+    git: {
+      getRef: (p: { owner: string; repo: string; ref: string }) => Promise<{ data: { object: { sha: string } } }>;
+      createRef: (p: { owner: string; repo: string; ref: string; sha: string }) => Promise<unknown>;
+    };
+  };
+}
+
+export type CreateBranchFn = (
+  installationId: number,
+  repoFullName: string,
+  branchName: string,
+  baseBranch: string,
+) => Promise<{ created: boolean }>;
+
+/**
+ * Create refs/heads/<branchName> at the base branch's HEAD, via the App
+ * (REQ-011 branch convention). Idempotent: an existing ref (GitHub 422) resolves
+ * to { created: false }. Any other error throws so the caller can retry.
+ */
+export async function createBranch(
+  installationId: number,
+  repoFullName: string,
+  branchName: string,
+  baseBranch: string,
+  client?: GitRefClient,
+): Promise<{ created: boolean }> {
+  const [owner, repo] = repoFullName.split("/");
+  const kit = client ?? ((await getInstallationOctokit(installationId)) as unknown as GitRefClient);
+  const base = await kit.rest.git.getRef({ owner, repo, ref: `heads/${baseBranch}` });
+  try {
+    await kit.rest.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: base.data.object.sha });
+    return { created: true };
+  } catch (e) {
+    const status = (e as { status?: number }).status;
+    if (status === 422) return { created: false }; // ref already exists — idempotent
+    throw e;
+  }
+}
+
+/**
+ * Ensure a branch exists for every claimed task that doesn't have one yet
+ * (branch_created_at IS NULL), from the project's default branch. Mirrors
+ * createIssuesForTasks: idempotent, runs OUTSIDE any DB transaction (external
+ * call). Stores branch_created_at as the "exists" sentinel — never github_status.
+ */
+export async function createBranchesForClaimedTasks(
+  db: Db,
+  createBranchFn: CreateBranchFn = createBranch,
+): Promise<{ created: string[] }> {
+  const [proj] = await db.select().from(project).limit(1);
+  if (!proj) throw new Error("No project bound (REQ-002).");
+
+  const pending = await db
+    .select({ id: tasks.id, key: tasks.key, branchName: tasks.branchName })
+    .from(tasks)
+    .where(and(eq(tasks.claimState, "claimed"), isNull(tasks.branchCreatedAt), isNotNull(tasks.branchName)));
+
+  const created: string[] = [];
+  for (const t of pending) {
+    if (!t.branchName) continue; // narrow; WHERE already excludes nulls
+    await createBranchFn(proj.installationId, proj.repoFullName, t.branchName, proj.defaultBranch);
+    await db.update(tasks).set({ branchCreatedAt: new Date(), updatedAt: new Date() }).where(eq(tasks.id, t.id));
+    created.push(t.key);
+  }
+  return { created };
+}
