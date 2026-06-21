@@ -45,7 +45,6 @@ async function tick(db: Db): Promise<void> {
       console.error("[worker] spec materialization skipped:", e instanceof Error ? e.message : e);
     }
   }
-
 }
 
 async function main(): Promise<void> {
