@@ -7,6 +7,7 @@ export type EventType =
   | "project.bound"
   | "requirement.declared"
   | "requirement.status_changed"
+  | "requirement.amended"
   | "idea.parked"
   | "idea.graduated"
   | "idea.submitted"
@@ -33,6 +34,7 @@ const RATIONALE_REQUIRED: ReadonlySet<EventType> = new Set([
   "idea.rejected",
   "work.logged_retroactively",
   "drift.resolved",
+  "requirement.amended",
 ]);
 
 export interface EmitEventInput {
