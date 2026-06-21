@@ -43,7 +43,7 @@ export function SpecGrid({ reqs }: { reqs: SpecMapRequirement[] }) {
               key={r.key}
               href={`/spec/${r.key}`}
               aria-label={`${r.key} ${r.title} · ${STATUS_LABEL[r.status] ?? r.status}`}
-              className={`group relative flex aspect-square cursor-default items-end rounded-md border p-2 transition-colors ${cellClass(r.status)}`}
+              className={`group relative flex aspect-square items-end rounded-md border p-2 transition-colors ${cellClass(r.status)}`}
             >
               {(r.status === "shipped" || r.status === "building") && (
                 <span
