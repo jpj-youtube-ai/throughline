@@ -2,6 +2,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { importGenesisSpec } from "@/genesis/import";
 
@@ -14,6 +15,8 @@ export type ImportState =
 // .md file or pasted text; delegates to importGenesisSpec (one-time bootstrap that
 // emits project.genesis_imported + a requirement.declared each, in one tx).
 export async function importSpec(_prev: ImportState, formData: FormData): Promise<ImportState> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Not signed in." };
   const file = formData.get("file");
   let text = "";
   let filename = "pasted-spec.md";
