@@ -35,20 +35,42 @@ export function SpecGrid({ reqs }: { reqs: SpecMapRequirement[] }) {
       </div>
 
       <div className="grid grid-cols-6 gap-2.5 sm:grid-cols-8">
-        {reqs.map((r) => (
-          <div
-            key={r.key}
-            title={`${r.key} — ${r.title} · ${STATUS_LABEL[r.status] ?? r.status}`}
-            className={`relative flex aspect-square cursor-default items-end rounded-md border p-2 transition-colors ${cellClass(r.status)}`}
-          >
-            {(r.status === "shipped" || r.status === "building") && (
-              <span
-                className={`absolute right-1.5 top-1.5 size-1.5 rounded-full ${r.status === "shipped" ? "bg-spine" : "bg-planned"}`}
-              />
-            )}
-            <span className="font-mono text-[11px]">{reqNum(r.key)}</span>
-          </div>
-        ))}
+        {reqs.map((r) => {
+          const merged = r.tasks.filter((t) => t.githubStatus === "closed").length;
+          return (
+            <div
+              key={r.key}
+              aria-label={`${r.key} ${r.title} · ${STATUS_LABEL[r.status] ?? r.status}`}
+              className={`group relative flex aspect-square cursor-default items-end rounded-md border p-2 transition-colors ${cellClass(r.status)}`}
+            >
+              {(r.status === "shipped" || r.status === "building") && (
+                <span
+                  className={`absolute right-1.5 top-1.5 size-1.5 rounded-full ${r.status === "shipped" ? "bg-spine" : "bg-planned"}`}
+                />
+              )}
+              <span className="font-mono text-[11px]">{reqNum(r.key)}</span>
+
+              {/* Hover card — appears instantly with the requirement's details */}
+              <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-60 max-w-[70vw] -translate-x-1/2 text-left group-hover:block">
+                <div className="rounded-leaf border border-hairline bg-paper-raised p-3 shadow-xl">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-[10px] text-spine-deep">{r.key}</span>
+                    <span className="font-mono text-[10px] uppercase tracking-wide text-graphite">
+                      {STATUS_LABEL[r.status] ?? r.status}
+                    </span>
+                  </div>
+                  <div className="font-display mt-1 text-[13px] font-semibold text-ink">{r.title}</div>
+                  {r.description && (
+                    <p className="mt-1 line-clamp-4 text-[11px] leading-relaxed text-graphite">{r.description}</p>
+                  )}
+                  <div className="mt-2 border-t border-hairline pt-2 font-mono text-[10px] text-graphite">
+                    {r.tasks.length === 0 ? "no tasks yet" : `${merged}/${r.tasks.length} tasks merged`}
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-4 font-mono text-[11px] text-graphite">
