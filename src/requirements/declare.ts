@@ -2,6 +2,7 @@
 import type { Db } from "../db/client";
 import { requirements } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { nextRequirementKey } from "./keys";
 
 export type Provenance = "imported" | "voted" | "drift";
 
@@ -21,13 +22,7 @@ export interface DeclareRequirementInput {
  */
 export async function declareRequirement(db: Db, input: DeclareRequirementInput): Promise<{ id: string; key: string }> {
   return db.transaction(async (tx) => {
-    const existing = await tx.select({ key: requirements.key }).from(requirements);
-    let max = 0;
-    for (const r of existing) {
-      const m = /-(\d+)$/.exec(r.key);
-      if (m) max = Math.max(max, Number(m[1]));
-    }
-    const key = `REQ-${String(max + 1).padStart(3, "0")}`;
+    const key = await nextRequirementKey(tx);
     const [row] = await tx
       .insert(requirements)
       .values({

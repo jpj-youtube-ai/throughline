@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { driftFlags, requirements, tasks } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { nextRequirementKey } from "../requirements/keys";
 
 export interface FlagDriftInput {
   taskId: string;
@@ -76,13 +77,7 @@ export async function resolveDrift(db: Db, input: ResolveDriftInput): Promise<Re
 
     if (input.resolution === "new_req") {
       if (!input.newReqTitle?.trim()) throw new Error("new_req resolution needs a requirement title.");
-      const existing = await tx.select({ key: requirements.key }).from(requirements);
-      let max = 0;
-      for (const r of existing) {
-        const m = /-(\d+)$/.exec(r.key);
-        if (m) max = Math.max(max, Number(m[1]));
-      }
-      newReqKey = `REQ-${String(max + 1).padStart(3, "0")}`;
+      newReqKey = await nextRequirementKey(tx);
       const [req] = await tx
         .insert(requirements)
         .values({
