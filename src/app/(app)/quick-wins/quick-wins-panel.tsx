@@ -20,7 +20,7 @@ export async function QuickWinsPanel() {
           When there are open, unclaimed tasks, the best ones to pick up next rise to the top here.
         </Empty>
       ) : (
-        <ol className="grid gap-3">
+        <ol className="grid grid-cols-1 gap-3">
           {wins.map((w, i) => (
             <li key={w.key}>
               <Card className="flex items-center gap-4 p-4">
