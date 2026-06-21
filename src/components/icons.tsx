@@ -157,3 +157,14 @@ export function ArrowIcon(props: SVGProps<SVGSVGElement>) {
     </Svg>
   );
 }
+
+export function DashboardIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <rect x="4" y="4" width="7" height="7" rx="1.2" />
+      <rect x="13" y="4" width="7" height="4.5" rx="1.2" />
+      <rect x="13" y="11" width="7" height="9" rx="1.2" />
+      <rect x="4" y="13.5" width="7" height="6.5" rx="1.2" />
+    </Svg>
+  );
+}
