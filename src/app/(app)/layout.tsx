@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { getDb } from "@/db/client";
@@ -22,19 +23,16 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const who = session.user.login ?? session.user.name ?? "signed in";
 
   return (
-    <div className="grid min-h-dvh grid-cols-[212px_1fr]">
-      <aside className="sticky top-0 flex h-dvh flex-col border-r border-hairline bg-paper-raised px-3 py-5">
-        <div className="flex items-center gap-2 px-2">
-          <span className="text-spine">
-            <Mark width={22} height={22} />
-          </span>
-          <span className="font-display text-[17px] font-bold tracking-tight">Throughline</span>
-        </div>
-        <div className="mt-6 flex-1 overflow-y-auto">
-          <NavRail />
-        </div>
-        <div className="border-t border-hairline pt-3">
-          <div className="truncate px-2 font-mono text-xs text-graphite">{who}</div>
+    <div className="grid min-h-dvh grid-cols-[64px_1fr]">
+      <aside className="sticky top-0 flex h-dvh flex-col items-center border-r border-hairline bg-paper-raised py-4">
+        <Link href="/dashboard" aria-label="Throughline" className="mb-5 text-spine">
+          <Mark width={24} height={24} />
+        </Link>
+        <NavRail />
+        <div className="mt-auto flex flex-col items-center gap-2">
+          <div className="truncate px-1 text-center font-mono text-[9px] text-graphite" title={who}>
+            {who.slice(0, 8)}
+          </div>
           <form
             action={async () => {
               "use server";
@@ -43,9 +41,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           >
             <button
               type="submit"
-              className="mt-1 w-full cursor-pointer rounded-md px-2 py-1.5 text-left text-sm text-graphite transition-colors hover:bg-paper-sunk hover:text-ink"
+              aria-label="Sign out"
+              title="Sign out"
+              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl text-graphite transition-colors hover:bg-paper-sunk hover:text-ink"
             >
-              Sign out
+              ⎋
             </button>
           </form>
         </div>
@@ -68,7 +68,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             )}
           </a>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-8 py-9">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 px-8 py-8">{children}</main>
       </div>
     </div>
   );

@@ -168,3 +168,13 @@ export function DashboardIcon(props: SVGProps<SVGSVGElement>) {
     </Svg>
   );
 }
+
+export function ConnectIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M9 15l6-6" />
+      <path d="M7.5 10.5l-1.8 1.8a3.2 3.2 0 004.5 4.5l1.8-1.8" />
+      <path d="M16.5 13.5l1.8-1.8a3.2 3.2 0 00-4.5-4.5l-1.8 1.8" />
+    </Svg>
+  );
+}
