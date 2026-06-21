@@ -3,7 +3,7 @@ import { ReconcilePanel } from "./reconcile-panel";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReconcilePage() {
+export default function ReconcilePage() {
   return (
     <>
       <PageHeader
