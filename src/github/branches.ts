@@ -1,7 +1,7 @@
 import { and, eq, isNull, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks, project } from "../db/schema";
-import { getInstallationOctokit } from "./app";
+import { getInstallationOctokit, commentOnIssue } from "./app";
 
 // The slice of the octokit git API we use — typed so domain code needs no `any`
 // and tests can supply an honest fake.
@@ -20,6 +20,13 @@ export type CreateBranchFn = (
   branchName: string,
   baseBranch: string,
 ) => Promise<{ created: boolean }>;
+
+export type CommentOnIssueFn = (
+  installationId: number,
+  repoFullName: string,
+  issueNumber: number,
+  body: string,
+) => Promise<void>;
 
 /**
  * Create refs/heads/<branchName> at the base branch's HEAD, via the App
@@ -68,12 +75,13 @@ export function kickoffComment(taskKey: string, branchName: string): string {
 export async function createBranchesForClaimedTasks(
   db: Db,
   createBranchFn: CreateBranchFn = createBranch,
+  commentOnIssueFn: CommentOnIssueFn = commentOnIssue,
 ): Promise<{ created: string[] }> {
   const [proj] = await db.select().from(project).limit(1);
   if (!proj) throw new Error("No project bound (REQ-002).");
 
   const pending = await db
-    .select({ id: tasks.id, key: tasks.key, branchName: tasks.branchName })
+    .select({ id: tasks.id, key: tasks.key, branchName: tasks.branchName, githubIssueNumber: tasks.githubIssueNumber })
     .from(tasks)
     .where(and(eq(tasks.claimState, "claimed"), isNull(tasks.branchCreatedAt), isNotNull(tasks.branchName)));
 
@@ -81,6 +89,14 @@ export async function createBranchesForClaimedTasks(
   for (const t of pending) {
     if (!t.branchName) continue; // narrow; WHERE already excludes nulls
     await createBranchFn(proj.installationId, proj.repoFullName, t.branchName, proj.defaultBranch);
+    if (t.githubIssueNumber != null) {
+      await commentOnIssueFn(
+        proj.installationId,
+        proj.repoFullName,
+        t.githubIssueNumber,
+        kickoffComment(t.key, t.branchName),
+      );
+    }
     await db.update(tasks).set({ branchCreatedAt: new Date(), updatedAt: new Date() }).where(eq(tasks.id, t.id));
     created.push(t.key);
   }

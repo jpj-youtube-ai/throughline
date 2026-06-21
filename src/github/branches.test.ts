@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
 import { project, tasks, requirements } from "../db/schema";
-import { createBranch, createBranchesForClaimedTasks, kickoffComment, type GitRefClient, type CreateBranchFn } from "./branches";
+import { createBranch, createBranchesForClaimedTasks, kickoffComment, type GitRefClient, type CreateBranchFn, type CommentOnIssueFn } from "./branches";
 
 const okClient: GitRefClient = {
   rest: {
@@ -97,6 +97,34 @@ test("createBranchesForClaimedTasks throws when no project is bound", async () =
   const { db, close } = await createTestDb();
   try {
     await assert.rejects(() => createBranchesForClaimedTasks(db, okClient as unknown as CreateBranchFn), /No project bound/);
+  } finally {
+    await close();
+  }
+});
+
+test("createBranchesForClaimedTasks posts a kickoff comment for a task with an issue number, skips one without", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const reqId = await seed(db);
+    await db.insert(tasks).values({ key: "TASK-010", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-010-a", githubIssueNumber: 42 });
+    await db.insert(tasks).values({ key: "TASK-011", title: "b", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-011-b" });
+
+    const branchFake: CreateBranchFn = async () => ({ created: true });
+    const comments: { issueNumber: number; body: string }[] = [];
+    const commentFake: CommentOnIssueFn = async (_i, _r, issueNumber, body) => {
+      comments.push({ issueNumber, body });
+    };
+
+    const { created } = await createBranchesForClaimedTasks(db, branchFake, commentFake);
+    assert.deepEqual(created.sort(), ["TASK-010", "TASK-011"]);
+
+    assert.equal(comments.length, 1); // only TASK-010 has an issue
+    assert.equal(comments[0].issueNumber, 42);
+    assert.match(comments[0].body, /TASK-010/);
+    assert.match(comments[0].body, /task-010-a/);
+
+    const rows = await db.select({ b: tasks.branchCreatedAt }).from(tasks);
+    assert.ok(rows.every((r) => r.b instanceof Date)); // both branches recorded
   } finally {
     await close();
   }
