@@ -5,7 +5,7 @@ import { buttonClass } from "@/components/ui";
 
 export default async function Home() {
   const session = await auth();
-  if (session?.user) redirect("/pulse");
+  if (session?.user) redirect("/dashboard");
 
   return (
     <main className="grid min-h-dvh place-items-center px-6 py-16">
@@ -44,7 +44,7 @@ export default async function Home() {
         <form
           action={async () => {
             "use server";
-            await signIn("github", { redirectTo: "/pulse" });
+            await signIn("github", { redirectTo: "/dashboard" });
           }}
         >
           <button type="submit" className={buttonClass("primary")}>

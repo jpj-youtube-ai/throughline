@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  DashboardIcon,
   PulseIcon,
   HeartbeatIcon,
   NarrativeIcon,
@@ -58,6 +59,19 @@ export function NavRail() {
   const pathname = usePathname() ?? "";
   return (
     <nav aria-label="Sections" className="flex flex-col gap-5">
+      <Link
+        href="/dashboard"
+        aria-current={pathname === "/dashboard" ? "page" : undefined}
+        className={`group flex items-center gap-3 rounded-md px-3 py-1.5 text-sm transition-colors duration-150 ${
+          pathname === "/dashboard"
+            ? "bg-spine-wash font-medium text-spine-deep"
+            : "text-graphite hover:bg-paper-sunk hover:text-ink"
+        }`}
+      >
+        <DashboardIcon className={pathname === "/dashboard" ? "text-spine" : "text-graphite group-hover:text-ink"} />
+        <span>Dashboard</span>
+        {pathname === "/dashboard" && <span className="ml-auto h-4 w-0.5 rounded-full bg-spine" />}
+      </Link>
       {GROUPS.map((group) => (
         <div key={group.label}>
           <div className="mb-1 px-3 font-mono text-[10px] uppercase tracking-[0.18em] text-graphite/70">
