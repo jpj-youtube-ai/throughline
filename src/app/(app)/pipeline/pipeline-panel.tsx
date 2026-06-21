@@ -13,10 +13,10 @@ export async function PipelinePanel() {
           The pipeline is empty.
         </p>
       ) : (
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-stretch">
+        <div className="flex flex-col gap-2">
           {stages.map((s, i) => (
             <Fragment key={s.key}>
-              <section className="flex-1 rounded-leaf border border-hairline bg-paper-raised p-4">
+              <section className="rounded-leaf border border-hairline bg-paper-raised p-4">
                 <div className="flex items-baseline justify-between">
                   <h2 className="font-mono text-[11px] uppercase tracking-[0.16em] text-graphite">{s.label}</h2>
                   <span className={`font-display text-2xl font-bold ${s.count > 0 ? "text-spine-deep" : "text-hairline"}`}>
@@ -38,9 +38,9 @@ export async function PipelinePanel() {
                 </div>
               </section>
               {i < stages.length - 1 && (
-                <div className="hidden shrink-0 items-center self-center text-hairline lg:flex" aria-hidden="true">
+                <div className="flex justify-center text-hairline" aria-hidden="true">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M12 5v14M6 13l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
               )}
