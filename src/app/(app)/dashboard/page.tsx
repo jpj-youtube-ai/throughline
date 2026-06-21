@@ -1,5 +1,6 @@
 // src/app/(app)/dashboard/page.tsx
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { listActivity } from "@/events/feed";
@@ -36,13 +37,13 @@ function ago(d: Date): string {
 }
 function RailCard({ href, Icon, title, children }: { href: string; Icon: typeof PulseIcon; title: string; children: ReactNode }) {
   return (
-    <a href={href} className="group block rounded-leaf border border-hairline bg-paper-raised p-4 transition-colors hover:border-spine/40 hover:bg-paper-sunk">
+    <Link href={href} className="group block rounded-leaf border border-hairline bg-paper-raised p-4 transition-colors hover:border-spine/40 hover:bg-paper-sunk">
       <div className="flex items-center gap-2 text-graphite">
         <Icon className="text-spine" />
         <span className="font-mono text-[11px] uppercase tracking-[0.14em]">{title}</span>
       </div>
       <div className="mt-2">{children}</div>
-    </a>
+    </Link>
   );
 }
 
@@ -112,7 +113,7 @@ export default async function DashboardPage() {
 
           {/* HERO ROW: Heartbeat line + Progress donut */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_240px]">
-            <a href="/heartbeat" className="group rounded-leaf border border-hairline bg-paper-raised p-5 transition-colors hover:border-spine/40">
+            <Link href="/heartbeat" className="group rounded-leaf border border-hairline bg-paper-raised p-5 transition-colors hover:border-spine/40">
               <div className="flex items-center gap-2 text-graphite">
                 <HeartbeatIcon className="text-spine" />
                 <span className="font-mono text-[11px] uppercase tracking-[0.14em]">Heartbeat — 14 days</span>
@@ -121,15 +122,15 @@ export default async function DashboardPage() {
               <div className="mt-3 text-spine">
                 <Sparkline values={heartbeat.days.map((d) => d.count)} width={640} height={96} area className="w-full" />
               </div>
-            </a>
-            <a href="/burnup" className="group flex flex-col items-center justify-center rounded-leaf border border-hairline bg-paper-raised p-5 transition-colors hover:border-spine/40">
+            </Link>
+            <Link href="/burnup" className="group flex flex-col items-center justify-center rounded-leaf border border-hairline bg-paper-raised p-5 transition-colors hover:border-spine/40">
               <div className="self-start flex items-center gap-2 text-graphite">
                 <ProgressIcon className="text-spine" />
                 <span className="font-mono text-[11px] uppercase tracking-[0.14em]">Progress</span>
               </div>
               <Donut value={burnup.done} max={burnup.scope} size={104} />
               <div className="text-[13px] text-graphite tabular-nums">{burnup.done}/{burnup.scope} merged</div>
-            </a>
+            </Link>
           </div>
 
           {/* MID ROW: Quick wins + Pipeline */}
@@ -143,7 +144,7 @@ export default async function DashboardPage() {
                 </ul>
               ) : <span>No open unclaimed tasks.</span>}
             </DashboardCard>
-            <a href="/pipeline" className="group rounded-leaf border border-hairline bg-paper-raised p-5 transition-colors hover:border-spine/40">
+            <Link href="/pipeline" className="group rounded-leaf border border-hairline bg-paper-raised p-5 transition-colors hover:border-spine/40">
               <div className="flex items-center gap-2 text-graphite">
                 <PipelineIcon className="text-spine" />
                 <span className="font-mono text-[11px] uppercase tracking-[0.14em]">Pipeline</span>
@@ -160,7 +161,7 @@ export default async function DashboardPage() {
                   );
                 })}
               </div>
-            </a>
+            </Link>
           </div>
 
           {/* SMALL ROW: Reconcile + Why-quality */}
