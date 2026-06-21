@@ -9,7 +9,13 @@ import { NavRail } from "@/components/nav-rail";
 
 export const dynamic = "force-dynamic";
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({
+  children,
+  drawer,
+}: {
+  children: ReactNode;
+  drawer: ReactNode;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/");
 
@@ -69,6 +75,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
           </a>
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-8 py-8">{children}</main>
+        {drawer}
       </div>
     </div>
   );
