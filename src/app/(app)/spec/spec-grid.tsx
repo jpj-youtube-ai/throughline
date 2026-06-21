@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { SpecMapRequirement } from "@/spec/map";
 
 // REQ-017 spec map as a status grid: one cell per requirement, color-coded by
@@ -38,8 +39,9 @@ export function SpecGrid({ reqs }: { reqs: SpecMapRequirement[] }) {
         {reqs.map((r) => {
           const merged = r.tasks.filter((t) => t.githubStatus === "closed").length;
           return (
-            <div
+            <Link
               key={r.key}
+              href={`/spec/${r.key}`}
               aria-label={`${r.key} ${r.title} · ${STATUS_LABEL[r.status] ?? r.status}`}
               className={`group relative flex aspect-square cursor-default items-end rounded-md border p-2 transition-colors ${cellClass(r.status)}`}
             >
@@ -68,7 +70,7 @@ export function SpecGrid({ reqs }: { reqs: SpecMapRequirement[] }) {
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
