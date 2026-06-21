@@ -1,6 +1,7 @@
 import type { ActivityItem } from "../events/feed";
 import type { TaskListItem } from "../tasks/queries";
 import type { SpecMapRequirement } from "../spec/map";
+import type { VotingIdea } from "../ideas/queries";
 
 export function eventsSince(items: ActivityItem[], sinceMs: number): number {
   return items.filter((it) => it.createdAt.getTime() >= sinceMs).length;
@@ -52,4 +53,10 @@ export function reqBreakdown(reqs: SpecMapRequirement[]): ReqBreakdown {
 
 export function pct(done: number, scope: number): number {
   return scope === 0 ? 0 : Math.round((100 * done) / scope);
+}
+
+// Ideas the current viewer has not yet voted on (drives the "needs votes" badge).
+export function ideasAwaitingVote(ideas: VotingIdea[], votedIds: string[]): VotingIdea[] {
+  const voted = new Set(votedIds);
+  return ideas.filter((i) => !voted.has(i.id));
 }

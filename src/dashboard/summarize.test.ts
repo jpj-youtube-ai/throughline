@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import type { TaskListItem } from "../tasks/queries";
 import type { ActivityItem } from "../events/feed";
 import type { SpecMapRequirement } from "../spec/map";
-import { eventsSince, taskBreakdown, topTasks, reqBreakdown, pct } from "./summarize";
+import type { VotingIdea } from "../ideas/queries";
+import { eventsSince, taskBreakdown, topTasks, reqBreakdown, pct, ideasAwaitingVote } from "./summarize";
 
 function task(p: Partial<TaskListItem> & { key: string }): TaskListItem {
   const { key, ...rest } = p;
@@ -51,4 +52,18 @@ test("reqBreakdown counts by status", () => {
 test("pct rounds and guards divide-by-zero", () => {
   assert.equal(pct(0, 0), 0);
   assert.equal(pct(17, 27), 63);
+});
+
+function idea(p: Partial<VotingIdea> & { id: string }): VotingIdea {
+  return {
+    title: p.id, why: null, feasibility: null, viability: null,
+    authorLogin: "a", voteCount: 0, createdAt: new Date(0), lastActivityAt: new Date(0),
+    ...p,
+  };
+}
+
+test("ideasAwaitingVote excludes ideas the viewer already voted on", () => {
+  const ideas = [idea({ id: "i1" }), idea({ id: "i2" }), idea({ id: "i3" })];
+  const out = ideasAwaitingVote(ideas, ["i2"]);
+  assert.deepEqual(out.map((i) => i.id), ["i1", "i3"]);
 });
