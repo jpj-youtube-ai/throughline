@@ -12,7 +12,7 @@ export function DashboardCard({
 }: {
   href: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
-  title: string;
+  title: ReactNode;
   stat: ReactNode;
   children?: ReactNode;
 }) {
