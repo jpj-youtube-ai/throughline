@@ -71,3 +71,29 @@ test("unclaimTask releases the claim — only the claimer can", async () => {
     await close();
   }
 });
+
+test("unclaimTask resets branchCreatedAt to null", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const u = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
+    const [req] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported" })
+      .returning({ id: requirements.id });
+    const [task] = await db
+      .insert(tasks)
+      .values({ key: "TASK-001", title: "a", body: "b", requirementId: req.id, effort: 1, risk: "low", confidence: 50 })
+      .returning({ id: tasks.id });
+
+    await claimTask(db, task.id, u[0].id);
+    // simulate the branch having been created
+    await db.update(tasks).set({ branchCreatedAt: new Date() }).where(eq(tasks.id, task.id));
+
+    await unclaimTask(db, task.id, u[0].id);
+
+    const [t] = await db.select({ b: tasks.branchCreatedAt }).from(tasks).where(eq(tasks.id, task.id));
+    assert.equal(t.b, null);
+  } finally {
+    await close();
+  }
+});

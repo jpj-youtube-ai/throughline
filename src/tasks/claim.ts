@@ -74,7 +74,7 @@ export async function unclaimTask(db: Db, taskId: string, userId: string): Promi
 
     await tx
       .update(tasks)
-      .set({ claimState: "unclaimed", claimUserId: null, branchName: null, updatedAt: new Date() })
+      .set({ claimState: "unclaimed", claimUserId: null, branchName: null, branchCreatedAt: null, updatedAt: new Date() })
       .where(eq(tasks.id, taskId));
     await emitEvent(tx, {
       type: "task.unclaimed",

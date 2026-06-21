@@ -99,6 +99,7 @@ export const tasks = pgTable("tasks", {
   githubIssueUrl: text("github_issue_url"),
   // Mirrored from GitHub only — written exclusively by the webhook handler.
   githubStatus: githubStatus("github_status").notNull().default("open"),
+  branchCreatedAt: timestamp("branch_created_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

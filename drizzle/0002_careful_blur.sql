@@ -1,0 +1,1 @@
+ALTER TABLE "tasks" ADD COLUMN "branch_created_at" timestamp with time zone;

@@ -15,6 +15,13 @@
       "when": 1781956516715,
       "tag": "0001_aromatic_domino",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782055761399,
+      "tag": "0002_careful_blur",
+      "breakpoints": true
     }
   ]
 }
