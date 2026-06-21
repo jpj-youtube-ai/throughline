@@ -2,7 +2,8 @@ import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { listTasks } from "@/tasks/queries";
 import { Card, Pill, Empty, buttonClass, type Tone } from "@/components/ui";
-import { claim, unclaim } from "./actions";
+import { unclaim } from "./actions";
+import { ClaimButton } from "./claim-button";
 
 const RISK_TONE: Record<string, Tone> = { low: "shipped", med: "planned", high: "risk" };
 
@@ -67,12 +68,7 @@ export async function TasksPanel() {
                       )}
                     </div>
                   ) : session?.user?.id ? (
-                    <form action={claim}>
-                      <input type="hidden" name="taskId" value={t.id} />
-                      <button type="submit" className={buttonClass("primary")}>
-                        Claim
-                      </button>
-                    </form>
+                    <ClaimButton taskId={t.id} />
                   ) : (
                     <span className="text-graphite">Sign in to claim.</span>
                   )}
