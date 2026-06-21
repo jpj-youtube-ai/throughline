@@ -1,6 +1,7 @@
 import { getDb } from "@/db/client";
 import { listSpecMap, type SpecMapRequirement } from "@/spec/map";
 import { PageHeader, Card, Pill, Empty, type Tone } from "@/components/ui";
+import { SpecUpload } from "./spec-upload";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ export default async function SpecPage() {
           </span>
         )}
       </PageHeader>
+
+      <SpecUpload alreadyImported={reqs.length > 0} count={reqs.length} />
 
       {reqs.length === 0 ? (
         <Empty title="No requirements yet.">Import the genesis spec, or approve an idea to declare the first one.</Empty>
