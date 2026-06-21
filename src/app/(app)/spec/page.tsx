@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { getDb } from "@/db/client";
 import { listSpecMap } from "@/spec/map";
-import { PageHeader, Empty } from "@/components/ui";
+import { PageHeader, Empty, buttonClass } from "@/components/ui";
 import { SpecUpload } from "./spec-upload";
 import { SpecGrid } from "./spec-grid";
 
@@ -17,11 +18,16 @@ export default async function SpecPage() {
         title="Spec map"
         lede="Every requirement and its status — materialized from the log, never hand-edited."
       >
-        {reqs.length > 0 && (
-          <span className="font-mono text-xs text-graphite">
-            <span className="text-shipped">{shipped}</span> / {reqs.length} shipped
-          </span>
-        )}
+        <div className="flex items-center gap-4">
+          {reqs.length > 0 && (
+            <span className="font-mono text-xs text-graphite">
+              <span className="text-shipped">{shipped}</span> / {reqs.length} shipped
+            </span>
+          )}
+          <Link href="/spec/document" className={buttonClass("quiet")}>
+            View SPEC.md
+          </Link>
+        </div>
       </PageHeader>
 
       <SpecUpload alreadyImported={reqs.length > 0} count={reqs.length} />
