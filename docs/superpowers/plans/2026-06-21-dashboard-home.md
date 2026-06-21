@@ -17,7 +17,7 @@ Copied verbatim from CLAUDE.md / SPEC.md — every task's requirements implicitl
 - **`tasks.github_status` is read-only locally** — only the webhook writes it. This plan adds no writer.
 - **Anthropic Sonnet/Opus only, never Haiku.** This plan makes **no** LLM calls (the three LLM-backed cards use cheap proxies).
 - **Sole auth is GitHub via Auth.js.** Do not add a second auth method.
-- **Branches:** `task-<key>-<slug>`. **PR title + squash message start with `[TASK-NNN]`.** This work ships as **`[TASK-030] Overview dashboard (REQ-028)`** on branch `task-030-dashboard-home`.
+- **Branches:** `task-<key>-<slug>`. **PR title + squash message start with `[TASK-NNN]`.** This work ships as **`[TASK-031] Overview dashboard (REQ-028)`** on branch `task-031-dashboard-home`.
 - **Every task implements exactly its linked REQ.** This work implements **REQ-028**, declared in Task 1 (it maps to none of the original 27 — see Task 1).
 - New `*.test.ts` files **must be appended to the `test` script list in `package.json`** (it is an explicit file list, not a glob).
 
@@ -27,7 +27,7 @@ The dashboard maps to no existing requirement. Per the user's decision we **decl
 
 **Provenance note (needs a nod, not a blocker):** the `provenance` enum is `imported | voted | drift` — there is no "manually declared" value. REQ-028 was not genesis-imported and did not pass the board vote, so we use **`drift`** (the enum value already used in `src/drift/flag.ts` for "a requirement declared to cover work outside the planned spec"), with the *why* recorded as the `requirement.declared` event's rationale. If you'd rather add a new enum value or use `voted`, say so before running Task 1's operator steps.
 
-**Known limitation (out of scope):** REQ-028's status auto-advances only from linked **task rows** (`reconcileRequirementStatus`). We are not minting a `tasks` row / GitHub issue for TASK-030 (that is the generation/claiming path), so REQ-028 will display as `planned` in the Spec card until a task row exists and merges. Surfaced as a follow-up; do not silently work around it.
+**Known limitation (out of scope):** REQ-028's status auto-advances only from linked **task rows** (`reconcileRequirementStatus`). We are not minting a `tasks` row / GitHub issue for TASK-031 (that is the generation/claiming path), so REQ-028 will display as `planned` in the Spec card until a task row exists and merges. Surfaced as a follow-up; do not silently work around it.
 
 ---
 
@@ -237,7 +237,7 @@ Expected: no errors.
 
 ```bash
 git add src/requirements/declare.ts src/requirements/declare.test.ts src/cli/declare-req.ts package.json
-git commit -m "[TASK-030] declareRequirement helper + CLI (REQ-028)"
+git commit -m "[TASK-031] declareRequirement helper + CLI (REQ-028)"
 ```
 
 - [ ] **Step 7: OPERATOR STEP — declare REQ-028 against the real DB, then materialize**
@@ -343,7 +343,7 @@ Expected: PASS.
 
 ```bash
 git add src/digest/queries.ts src/digest/queries.test.ts package.json
-git commit -m "[TASK-030] digestSummary cheap proxy query (REQ-028)"
+git commit -m "[TASK-031] digestSummary cheap proxy query (REQ-028)"
 ```
 
 ---
@@ -417,7 +417,7 @@ Expected: PASS.
 
 ```bash
 git add src/quality/queries.ts src/quality/queries.test.ts package.json
-git commit -m "[TASK-030] countRationales cheap proxy query (REQ-028)"
+git commit -m "[TASK-031] countRationales cheap proxy query (REQ-028)"
 ```
 
 ---
@@ -502,7 +502,7 @@ Expected: PASS.
 
 ```bash
 git add src/integrity/reconcile.ts src/integrity/reconcile.test.ts
-git commit -m "[TASK-030] structuralReconciliationForProject cheap reconcile read (REQ-028)"
+git commit -m "[TASK-031] structuralReconciliationForProject cheap reconcile read (REQ-028)"
 ```
 
 ---
@@ -614,7 +614,7 @@ Expected: no errors.
 
 ```bash
 git add src/components/sparkline.ts src/components/sparkline.tsx src/components/sparkline.test.ts package.json
-git commit -m "[TASK-030] Sparkline component + pure path generator (REQ-028)"
+git commit -m "[TASK-031] Sparkline component + pure path generator (REQ-028)"
 ```
 
 ---
@@ -769,7 +769,7 @@ Expected: PASS (all summarize tests).
 
 ```bash
 git add src/dashboard/summarize.ts src/dashboard/summarize.test.ts package.json
-git commit -m "[TASK-030] dashboard card summarizers (REQ-028)"
+git commit -m "[TASK-031] dashboard card summarizers (REQ-028)"
 ```
 
 ---
@@ -848,7 +848,7 @@ Expected: no errors.
 
 ```bash
 git add src/components/dashboard-card.tsx src/components/icons.tsx
-git commit -m "[TASK-030] DashboardCard shell + DashboardIcon (REQ-028)"
+git commit -m "[TASK-031] DashboardCard shell + DashboardIcon (REQ-028)"
 ```
 
 ---
@@ -1114,7 +1114,7 @@ Expected: four group sections (Story / Work / Spec / Integrity) with 13 cards to
 
 ```bash
 git add "src/app/(app)/dashboard/page.tsx"
-git commit -m "[TASK-030] dashboard page — 13-card grid (REQ-028)"
+git commit -m "[TASK-031] dashboard page — 13-card grid (REQ-028)"
 ```
 
 ---
@@ -1195,7 +1195,7 @@ Expected: sign-in lands on `/dashboard`; the sidebar shows **Dashboard** pinned 
 
 ```bash
 git add src/components/nav-rail.tsx src/app/page.tsx
-git commit -m "[TASK-030] dashboard nav link + landing redirect (REQ-028)"
+git commit -m "[TASK-031] dashboard nav link + landing redirect (REQ-028)"
 ```
 
 ---
@@ -1223,8 +1223,8 @@ Run: `npm run dev`. Confirm: sign-in → `/dashboard`; 13 cards across the four 
 - [ ] **Step 4: Push and open the PR**
 
 ```bash
-git push -u origin task-030-dashboard-home
-gh pr create --title "[TASK-030] Overview dashboard (REQ-028)" --body "$(cat <<'EOF'
+git push -u origin task-031-dashboard-home
+gh pr create --title "[TASK-031] Overview dashboard (REQ-028)" --body "$(cat <<'EOF'
 Adds a /dashboard home: a comprehensive grid mirroring all 13 sidebar areas (Story / Work / Spec / Integrity), each card showing a headline stat + a tiny preview. Becomes the post-sign-in landing page.
 
 Read-only projection — emits no events, writes no state. Digest, Reconcile, and Why-quality use cheap, no-LLM proxy queries so the page never fires the model on load.
@@ -1236,7 +1236,7 @@ EOF
 )"
 ```
 
-Expected: PR opens with the `[TASK-030]` title (squash-merge will land one clean `[TASK-030]` line on `master`).
+Expected: PR opens with the `[TASK-031]` title (squash-merge will land one clean `[TASK-031]` line on `master`).
 
 ---
 
