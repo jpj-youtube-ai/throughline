@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { getDb } from "@/db/client";
-import { sendDigest } from "@/digest/send";
+import { generateDigest } from "@/digest/send";
 
-export async function sendNow() {
+export async function generate() {
   const session = await auth();
   if (!session?.user?.id) throw new Error("Not signed in.");
-  await sendDigest(getDb());
+  await generateDigest(getDb());
   revalidatePath("/digest");
   revalidatePath("/dashboard");
 }

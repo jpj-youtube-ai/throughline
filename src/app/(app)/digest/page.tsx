@@ -7,9 +7,9 @@ export default function DigestPage() {
   return (
     <>
       <PageHeader
-        eyebrow="Outbound"
+        eyebrow="Surface"
         title="Digest"
-        lede="The one push out of Throughline: a periodic summary of recent decisions, posted to your team's webhook. The worker sends it on schedule."
+        lede="An on-demand summary of what has moved since the last digest — generated on request and read here. No outbound delivery."
       />
       <DigestPanel />
     </>

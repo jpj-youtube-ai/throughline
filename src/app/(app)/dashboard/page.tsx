@@ -206,7 +206,7 @@ export default async function DashboardPage() {
           </RailCard>
 
           <RailCard href="/digest" Icon={DigestIcon} title="Digest">
-            <span className="text-[13px] text-graphite">{digest.lastSentAt ? `Last sent ${ago(digest.lastSentAt)}` : "Never sent"} · {digest.count} sent</span>
+            <span className="text-[13px] text-graphite">{digest.lastGeneratedAt ? `Last generated ${ago(digest.lastGeneratedAt)}` : "Never generated"} · {digest.count} generated</span>
           </RailCard>
         </div>
       </div>
