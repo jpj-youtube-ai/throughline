@@ -40,15 +40,9 @@ export default async function ConnectPage() {
               {bound.repoFullName}
             </a>
           </div>
-          <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">default branch</dt>
-              <dd className="font-mono text-ink">{bound.defaultBranch}</dd>
-            </div>
-            <div>
-              <dt className="font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">local clone</dt>
-              <dd className="truncate font-mono text-ink">{bound.localClonePath}</dd>
-            </div>
+          <dl className="mt-4 text-sm">
+            <dt className="font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">default branch</dt>
+            <dd className="font-mono text-ink">{bound.defaultBranch}</dd>
           </dl>
           <p className="mt-4 border-t border-hairline pt-3 text-[13px] text-graphite">
             Single project / single repo — rebinding isn&apos;t supported by design.
