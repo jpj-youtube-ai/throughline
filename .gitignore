@@ -13,3 +13,6 @@ next-env.d.ts
 # local preview / e2e artifacts
 .playwright-mcp/
 *.local.png
+
+# superpowers SDD scratch (progress ledger, briefs, review packages)
+.superpowers/
