@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sparklinePath } from "./sparkline";
+import { sparklinePath } from "./sparkline-math";
 
 test("sparklinePath draws a centered flat line for an empty series", () => {
   const g = sparklinePath([], 100, 20);

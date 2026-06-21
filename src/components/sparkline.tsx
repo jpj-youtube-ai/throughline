@@ -1,4 +1,4 @@
-import { sparklinePath } from "./sparkline";
+import { sparklinePath } from "./sparkline-math";
 
 export function Sparkline({
   values,
