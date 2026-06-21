@@ -8,7 +8,7 @@ const DigestSchema = z
     summary: z
       .string()
       .describe(
-        "A brief outbound digest, 2–4 plain sentences. No greeting, sign-off, or markdown headings. Grounded strictly in the events.",
+        "A brief in-app digest, 2–4 plain sentences. No greeting, sign-off, or markdown headings. Grounded strictly in the events.",
       ),
   })
   .strict();
@@ -17,11 +17,11 @@ export type ComposeResult = { ok: true; text: string } | { ok: false; failure: s
 
 export type ComposeFn = (args: { eventDigest: string; since: string | null }) => Promise<ComposeResult>;
 
-const SYSTEM = `You write a short outbound digest of a project's recent decisions for the team's channel. Summarise what happened and why in 2–4 plain sentences, grounded strictly in the events given — do not invent work, names, or numbers. No greeting, no sign-off, no markdown headings; just the prose.`;
+const SYSTEM = `You write a short in-app digest of a project's recent decisions for the team to read on the board. Summarise what happened and why in 2–4 plain sentences, grounded strictly in the events given — do not invent work, names, or numbers. No greeting, no sign-off, no markdown headings; just the prose.`;
 
 /**
- * Compose the prose digest (REQ-026) from the recent events. Live — needs the
- * Anthropic API; returns ok/failure so a scheduled run can skip cleanly on error
+ * Compose the prose digest (REQ-026) from the recent events. In-app — needs the
+ * Anthropic API; returns ok/failure so an on-demand call can skip cleanly on error
  * rather than throw.
  */
 export const composeDigest: ComposeFn = async ({ eventDigest, since }) => {

@@ -41,8 +41,6 @@ export const project = pgTable("project", {
   specPath: text("spec_path").notNull().default("SPEC.md"),
   claudeMdPath: text("claude_md_path").notNull().default("CLAUDE.md"),
   conventionVersion: integer("convention_version").notNull().default(1),
-  digestWebhookUrl: text("digest_webhook_url"),
-  digestSchedule: text("digest_schedule"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
