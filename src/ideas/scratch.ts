@@ -11,11 +11,14 @@ export interface ScratchIdea {
 }
 
 // An author's private scratch ideas — not yet open for voting (REQ-024).
-export async function listScratchIdeas(db: Db, authorId: string): Promise<ScratchIdea[]> {
+export async function listScratchIdeas(db: Db, projectId: string | undefined, authorId: string): Promise<ScratchIdea[]> {
+  const where = projectId
+    ? and(eq(ideas.state, "scratch"), eq(ideas.authorId, authorId), eq(ideas.projectId, projectId))
+    : and(eq(ideas.state, "scratch"), eq(ideas.authorId, authorId));
   return db
     .select({ id: ideas.id, title: ideas.title, why: ideas.why, createdAt: ideas.createdAt })
     .from(ideas)
-    .where(and(eq(ideas.state, "scratch"), eq(ideas.authorId, authorId)))
+    .where(where)
     .orderBy(desc(ideas.createdAt));
 }
 

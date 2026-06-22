@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, and } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { events, users, tasks, requirements, ideas } from "../db/schema";
 
@@ -42,7 +42,8 @@ function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
 }
 
-export async function listActivity(db: Db, limit = 120): Promise<ActivityItem[]> {
+export async function listActivity(db: Db, projectId?: string, limit = 120): Promise<ActivityItem[]> {
+  const where = projectId ? and(eq(events.projectId, projectId)) : undefined;
   const rows = await db
     .select({
       seq: events.seq,
@@ -56,6 +57,7 @@ export async function listActivity(db: Db, limit = 120): Promise<ActivityItem[]>
     })
     .from(events)
     .leftJoin(users, eq(events.actorId, users.id))
+    .where(where)
     .orderBy(desc(events.seq))
     .limit(limit);
 

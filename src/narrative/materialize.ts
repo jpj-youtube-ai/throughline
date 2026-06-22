@@ -25,7 +25,7 @@ export async function materializeNarrative(
   generate: NarrativeGenerator = defaultGenerator,
 ): Promise<MaterializeNarrativeResult> {
   // chronological (listActivity is newest-first)
-  const items = (await listActivity(db, 2000)).slice().reverse();
+  const items = (await listActivity(db, undefined, 2000)).slice().reverse();
   const eventCount = items.length;
   if (eventCount === 0) throw new Error("No events yet — nothing to narrate.");
 

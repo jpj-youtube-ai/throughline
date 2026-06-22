@@ -2,6 +2,7 @@ import { getDb } from "@/db/client";
 import { listActivity, type ActivityItem } from "@/events/feed";
 import { Empty, Field, fieldClass, buttonClass } from "@/components/ui";
 import { logWork } from "./actions";
+import { activeProjectId } from "@/project/current";
 
 function relTime(d: Date): string {
   const m = Math.round((Date.now() - d.getTime()) / 60000);
@@ -27,7 +28,8 @@ function dayLabel(d: Date): string {
 }
 
 export async function PulsePanel() {
-  const items = await listActivity(getDb());
+  const pid = await activeProjectId();
+  const items = await listActivity(getDb(), pid);
 
   const groups: { label: string; items: ActivityItem[] }[] = [];
   for (const it of items) {

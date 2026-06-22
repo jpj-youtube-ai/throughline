@@ -94,7 +94,7 @@ const defaultGrade: GradeFn = (items) => gradeRationales({ items });
  * is injectable so the merge is testable without the API.
  */
 export async function reviewWhyQuality(db: Db, grade: GradeFn = defaultGrade, limit = 40): Promise<WhyReview> {
-  const items: RationaleItem[] = (await listActivity(db, 400))
+  const items: RationaleItem[] = (await listActivity(db, undefined, 400))
     .filter((it) => it.why && it.why.trim())
     .slice(0, limit)
     .map((it) => ({ id: String(it.seq), kind: it.verb, subject: it.subject, rationale: it.why as string }));

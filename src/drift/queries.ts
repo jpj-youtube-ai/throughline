@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { driftFlags, tasks } from "../db/schema";
 
@@ -10,7 +10,10 @@ export interface OpenDriftFlag {
   createdAt: Date;
 }
 
-export async function listOpenDriftFlags(db: Db): Promise<OpenDriftFlag[]> {
+export async function listOpenDriftFlags(db: Db, projectId?: string): Promise<OpenDriftFlag[]> {
+  const where = projectId
+    ? and(eq(driftFlags.status, "open"), eq(tasks.projectId, projectId))
+    : eq(driftFlags.status, "open");
   const rows = await db
     .select({
       id: driftFlags.id,
@@ -21,7 +24,7 @@ export async function listOpenDriftFlags(db: Db): Promise<OpenDriftFlag[]> {
     })
     .from(driftFlags)
     .innerJoin(tasks, eq(driftFlags.taskId, tasks.id))
-    .where(eq(driftFlags.status, "open"))
+    .where(where)
     .orderBy(desc(driftFlags.createdAt));
   return rows.map((r) => ({ ...r, unmappedItems: (r.unmappedItems as string[]) ?? [] }));
 }

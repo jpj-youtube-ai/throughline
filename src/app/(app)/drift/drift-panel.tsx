@@ -2,9 +2,11 @@ import { getDb } from "@/db/client";
 import { listOpenDriftFlags } from "@/drift/queries";
 import { Card, Pill, Empty, Field, fieldClass, buttonClass } from "@/components/ui";
 import { resolve } from "./actions";
+import { activeProjectId } from "@/project/current";
 
 export async function DriftPanel() {
-  const flags = await listOpenDriftFlags(getDb());
+  const pid = await activeProjectId();
+  const flags = await listOpenDriftFlags(getDb(), pid);
 
   return (
     <>

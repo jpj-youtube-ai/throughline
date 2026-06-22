@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
 import { users, requirements, tasks, driftFlags, events, project } from "../db/schema";
 import { flagDrift, resolveDrift } from "./flag";
+import { listOpenDriftFlags } from "./queries";
 
 interface Seed {
   taskId: string;
@@ -140,6 +141,42 @@ test("resolving an already-resolved flag is rejected", async () => {
       resolveDrift(db, { flagId, resolution: "out_of_scope", resolvedBy: userId, rationale: "again" }),
       /already resolved/i,
     );
+  } finally {
+    await close();
+  }
+});
+
+test("listOpenDriftFlags scopes to projectId via tasks join", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    // Project 1 — use existing seed helper
+    const { taskId: taskP1, projectId: p1Id } = await seed(db);
+
+    // Project 2 — seed a second project + task
+    const [proj2] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/other", defaultBranch: "main", installationId: 2, localClonePath: "/y" })
+      .returning({ id: project.id });
+    const [req2] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "T", description: "d", provenance: "imported", projectId: proj2.id })
+      .returning({ id: requirements.id });
+    const [task2] = await db
+      .insert(tasks)
+      .values({ key: "TASK-002", title: "t2", body: "b", requirementId: req2.id, effort: 1, risk: "low", confidence: 50, projectId: proj2.id })
+      .returning({ id: tasks.id });
+
+    // Flag one task in each project
+    await flagDrift(db, { taskId: taskP1, prNumber: 11, unmappedItems: ["change in p1"] });
+    await flagDrift(db, { taskId: task2.id, prNumber: 22, unmappedItems: ["change in p2"] });
+
+    const forP1 = await listOpenDriftFlags(db, p1Id);
+    assert.equal(forP1.length, 1, "only p1 drift returned when scoped to p1");
+    assert.equal(forP1[0].prNumber, 11);
+
+    const forP2 = await listOpenDriftFlags(db, proj2.id);
+    assert.equal(forP2.length, 1, "only p2 drift returned when scoped to p2");
+    assert.equal(forP2[0].prNumber, 22);
   } finally {
     await close();
   }

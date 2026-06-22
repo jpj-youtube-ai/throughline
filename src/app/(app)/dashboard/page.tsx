@@ -54,7 +54,7 @@ export default async function DashboardPage() {
   const [
     activity, heartbeat, narrative, digest, ideas, votedIds, tasks, quickWins, pipeline, burnup, drift, reconcile, rationales,
   ] = await Promise.all([
-    listActivity(db, 120),
+    listActivity(db, undefined, 120),
     heartbeatSeries(db, Date.now(), 14),
     getLatestNarrative(db),
     digestSummary(db),

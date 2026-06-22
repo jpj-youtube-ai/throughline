@@ -1,4 +1,4 @@
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, and } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { ideas, users, votes } from "../db/schema";
 
@@ -18,7 +18,10 @@ export interface VotingIdea {
  * The idea board (REQ-006): ideas in voting with title, why, scores, author, and
  * live vote progress, default-sorted by vote progress (closest to the gate first).
  */
-export async function listVotingIdeas(db: Db): Promise<VotingIdea[]> {
+export async function listVotingIdeas(db: Db, projectId?: string): Promise<VotingIdea[]> {
+  const where = projectId
+    ? and(eq(ideas.state, "voting"), eq(ideas.projectId, projectId))
+    : eq(ideas.state, "voting");
   return db
     .select({
       id: ideas.id,
@@ -34,7 +37,7 @@ export async function listVotingIdeas(db: Db): Promise<VotingIdea[]> {
     .from(ideas)
     .innerJoin(users, eq(ideas.authorId, users.id))
     .leftJoin(votes, eq(votes.ideaId, ideas.id))
-    .where(eq(ideas.state, "voting"))
+    .where(where)
     .groupBy(ideas.id, users.githubLogin)
     .orderBy(desc(sql`count(${votes.id})`), desc(ideas.createdAt));
 }

@@ -30,7 +30,7 @@ export async function generateDigest(db: Db, opts: { compose?: ComposeFn } = {})
     .limit(1);
   const since = last?.at ?? null;
 
-  const fresh = (await listActivity(db, 500)).filter((it) => !since || it.createdAt > since);
+  const fresh = (await listActivity(db, undefined, 500)).filter((it) => !since || it.createdAt > since);
   if (fresh.length === 0) return { generated: false, reason: "nothing new since the last digest" };
 
   // chronological digest text, with the why woven in

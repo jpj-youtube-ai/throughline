@@ -77,3 +77,33 @@ test("listActivity presents events newest-first with human verbs, subject keys, 
     await close();
   }
 });
+
+test("listActivity scopes to projectId when provided", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p1] = await db
+      .insert(project)
+      .values({ repoFullName: "org/alpha", installationId: 1, defaultBranch: "main", localClonePath: "/a", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    const [p2] = await db
+      .insert(project)
+      .values({ repoFullName: "org/beta", installationId: 2, defaultBranch: "main", localClonePath: "/b", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    const [u] = await db.insert(users).values({ githubId: 99, githubLogin: "eve" }).returning({ id: users.id });
+
+    await db.transaction((tx) =>
+      emitEvent(tx, { type: "project.bound", subjectType: "project", subjectId: p1.id, actorId: u.id, payload: {}, projectId: p1.id }),
+    );
+    await db.transaction((tx) =>
+      emitEvent(tx, { type: "project.bound", subjectType: "project", subjectId: p2.id, actorId: u.id, payload: {}, projectId: p2.id }),
+    );
+
+    const forP1 = await listActivity(db, p1.id);
+    assert.equal(forP1.length, 1, "only p1 events returned when scoped to p1");
+
+    const forP2 = await listActivity(db, p2.id);
+    assert.equal(forP2.length, 1, "only p2 events returned when scoped to p2");
+  } finally {
+    await close();
+  }
+});

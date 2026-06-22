@@ -7,14 +7,16 @@ import { ideaDecay } from "@/ideas/decay";
 import { listScratchIdeas } from "@/ideas/scratch";
 import { Card, Pill, Empty, buttonClass } from "@/components/ui";
 import { approve, promote } from "./actions";
+import { activeProjectId } from "@/project/current";
 
 export async function IdeasPanel() {
   const session = await auth();
   const db = getDb();
+  const pid = await activeProjectId();
   const votedIds = session?.user?.id ? new Set(await idsUserVotedFor(db, session.user.id)) : new Set<string>();
-  const scratch = session?.user?.id ? await listScratchIdeas(db, session.user.id) : [];
+  const scratch = session?.user?.id ? await listScratchIdeas(db, pid, session.user.id) : [];
   const now = Date.now();
-  const ideas = (await listVotingIdeas(db))
+  const ideas = (await listVotingIdeas(db, pid))
     .map((i) => ({ ...i, decay: ideaDecay(i.lastActivityAt, now) }))
     .sort((a, b) => b.decay.idleDays - a.decay.idleDays || b.voteCount - a.voteCount);
 
