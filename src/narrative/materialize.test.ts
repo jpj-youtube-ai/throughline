@@ -28,13 +28,13 @@ test("materializeNarrative builds a grounded digest, stores chapters, emits narr
     const [u] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
     const [r] = await db
       .insert(requirements)
-      .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported" })
+      .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", projectId: proj.id })
       .returning({ id: requirements.id });
     await db.transaction((tx) =>
-      emitEvent(tx, { type: "requirement.declared", subjectType: "requirement", subjectId: r.id, actorId: u.id, payload: { key: "REQ-003" } }),
+      emitEvent(tx, { type: "requirement.declared", subjectType: "requirement", subjectId: r.id, actorId: u.id, payload: { key: "REQ-003" }, projectId: proj.id }),
     );
     await db.transaction((tx) =>
-      emitEvent(tx, { type: "idea.approved", subjectType: "idea", actorId: u.id, payload: {}, rationale: "reached the 2-vote gate" }),
+      emitEvent(tx, { type: "idea.approved", subjectType: "idea", actorId: u.id, payload: {}, rationale: "reached the 2-vote gate", projectId: proj.id }),
     );
 
     let capturedDigest = "";

@@ -16,7 +16,7 @@ async function seed(db: Db): Promise<{ taskId: string; u1: string; u2: string; p
   const u2 = await mk(2, "bob");
   const [req] = await db
     .insert(requirements)
-    .values({ key: "REQ-003", title: "t", description: "d", provenance: "imported" })
+    .values({ key: "REQ-003", title: "t", description: "d", provenance: "imported", projectId: proj.id })
     .returning({ id: requirements.id });
   const [task] = await db
     .insert(tasks)
@@ -83,14 +83,18 @@ test("unclaimTask releases the claim — only the claimer can", async () => {
 test("unclaimTask resets branchCreatedAt to null", async () => {
   const { db, close } = await createTestDb();
   try {
+    const [proj] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/repo", defaultBranch: "main", installationId: 1, localClonePath: "/x" })
+      .returning({ id: project.id });
     const u = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
     const [req] = await db
       .insert(requirements)
-      .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported" })
+      .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: proj.id })
       .returning({ id: requirements.id });
     const [task] = await db
       .insert(tasks)
-      .values({ key: "TASK-001", title: "a", body: "b", requirementId: req.id, effort: 1, risk: "low", confidence: 50 })
+      .values({ key: "TASK-001", title: "a", body: "b", requirementId: req.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id })
       .returning({ id: tasks.id });
 
     await claimTask(db, task.id, u[0].id);

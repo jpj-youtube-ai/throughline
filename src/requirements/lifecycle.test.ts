@@ -6,14 +6,6 @@ import { requirements, tasks, events, project } from "../db/schema";
 import { reconcileRequirementStatus } from "./lifecycle";
 import { handleWebhook } from "../github/webhook";
 
-async function seedReq(db: Db, status: "planned" | "building" | "shipped" = "planned", projectId?: string | null) {
-  const [r] = await db
-    .insert(requirements)
-    .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status, projectId: projectId ?? null })
-    .returning({ id: requirements.id });
-  return r.id;
-}
-
 async function seedProject(db: Db): Promise<string> {
   const [p] = await db
     .insert(project)
@@ -29,10 +21,21 @@ async function seedProject(db: Db): Promise<string> {
   return p.id;
 }
 
+async function seedReq(db: Db, status: "planned" | "building" | "shipped" = "planned", projectId?: string) {
+  const pid = projectId ?? await seedProject(db);
+  const [r] = await db
+    .insert(requirements)
+    .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status, projectId: pid })
+    .returning({ id: requirements.id });
+  return r.id;
+}
+
 async function addTask(db: Db, reqId: string, key: string, github: "open" | "closed" = "open") {
+  // Look up the requirement's projectId to use on the task.
+  const [req] = await db.select({ projectId: requirements.projectId }).from(requirements).where(eq(requirements.id, reqId)).limit(1);
   const [t] = await db
     .insert(tasks)
-    .values({ key, title: key, body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, githubStatus: github })
+    .values({ key, title: key, body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, githubStatus: github, projectId: req.projectId })
     .returning({ id: tasks.id });
   return t.id;
 }
@@ -92,7 +95,7 @@ test("reconcileRequirementStatus carries projectId from the requirement onto the
     const reqId = await seedReq(db, "planned", projectId);
     await db
       .insert(tasks)
-      .values({ key: "TASK-010", title: "t", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, githubStatus: "open" });
+      .values({ key: "TASK-010", title: "t", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, githubStatus: "open", projectId });
 
     await db.transaction((tx) => reconcileRequirementStatus(tx, reqId));
 

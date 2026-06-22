@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { importGenesisSpec } from "@/genesis/import";
+import { getActiveProjectId } from "@/project/active";
 
 export type ImportState =
   | { ok: true; count: number; keys: string[] }
@@ -28,7 +29,9 @@ export async function importSpec(_prev: ImportState, formData: FormData): Promis
   }
   if (!text.trim()) return { ok: false, error: "Paste the spec markdown or choose a file." };
   try {
-    const r = await importGenesisSpec(getDb(), text, filename);
+    const db = getDb();
+    const projectId = await getActiveProjectId(db, session.user.id);
+    const r = await importGenesisSpec(db, text, filename, projectId);
     revalidatePath("/spec");
     revalidatePath("/dashboard");
     return { ok: true, count: r.count, keys: r.keys };

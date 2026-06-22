@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { tasks } from "../db/schema";
+import { tasks, project } from "../db/schema";
 import { emitEvent } from "../db/events";
 
 export interface LogWorkInput {
@@ -26,15 +26,24 @@ export async function logWorkRetroactively(db: Db, input: LogWorkInput): Promise
     let subjectType = "project";
     let subjectId: string | null = null;
     let taskKey: string | null = null;
+    let projectId: string | null = null;
 
     const requested = input.taskKey?.trim();
     if (requested) {
       const key = requested.toUpperCase();
-      const [task] = await tx.select({ id: tasks.id, key: tasks.key }).from(tasks).where(eq(tasks.key, key)).limit(1);
+      const [task] = await tx.select({ id: tasks.id, key: tasks.key, projectId: tasks.projectId }).from(tasks).where(eq(tasks.key, key)).limit(1);
       if (!task) throw new Error(`No task ${key} to attach this to.`);
       subjectType = "task";
       subjectId = task.id;
       taskKey = task.key;
+      projectId = task.projectId;
+    }
+
+    // Fall back to the oldest project if the event is not task-scoped.
+    if (!projectId) {
+      const [p] = await tx.select({ id: project.id }).from(project).orderBy(asc(project.createdAt)).limit(1);
+      if (!p) throw new Error("No project bound — cannot log work.");
+      projectId = p.id;
     }
 
     return emitEvent(tx, {
@@ -44,6 +53,7 @@ export async function logWorkRetroactively(db: Db, input: LogWorkInput): Promise
       actorId: input.actorId,
       payload: { summary, task_key: taskKey },
       rationale,
+      projectId,
     });
   });
 }

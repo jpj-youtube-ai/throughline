@@ -13,7 +13,7 @@ async function seedProjectWithActivity(db: Db): Promise<string> {
     .returning({ id: project.id });
   const [u] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
   await db.transaction((tx) =>
-    emitEvent(tx, { type: "idea.approved", subjectType: "idea", actorId: u.id, payload: {}, rationale: "reached the gate" }),
+    emitEvent(tx, { type: "idea.approved", subjectType: "idea", actorId: u.id, payload: {}, rationale: "reached the gate", projectId: proj.id }),
   );
   return proj.id;
 }

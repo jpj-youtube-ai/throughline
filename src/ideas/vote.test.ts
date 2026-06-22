@@ -5,19 +5,6 @@ import { createTestDb, type Db } from "../db/client";
 import { users, ideas, votes, events, project } from "../db/schema";
 import { castVote } from "./vote";
 
-async function setup(db: Db): Promise<{ ideaId: string; author: string; u2: string; u3: string }> {
-  const mk = async (gid: number, login: string): Promise<string> =>
-    (await db.insert(users).values({ githubId: gid, githubLogin: login }).returning({ id: users.id }))[0].id;
-  const author = await mk(1, "alice");
-  const u2 = await mk(2, "bob");
-  const u3 = await mk(3, "carol");
-  const [idea] = await db
-    .insert(ideas)
-    .values({ title: "X", why: "w", authorId: author, state: "voting" })
-    .returning({ id: ideas.id });
-  return { ideaId: idea.id, author, u2, u3 };
-}
-
 async function seedProject(db: Db): Promise<string> {
   const [p] = await db
     .insert(project)
@@ -31,6 +18,20 @@ async function seedProject(db: Db): Promise<string> {
     })
     .returning({ id: project.id });
   return p.id;
+}
+
+async function setup(db: Db): Promise<{ ideaId: string; author: string; u2: string; u3: string }> {
+  const projectId = await seedProject(db);
+  const mk = async (gid: number, login: string): Promise<string> =>
+    (await db.insert(users).values({ githubId: gid, githubLogin: login }).returning({ id: users.id }))[0].id;
+  const author = await mk(1, "alice");
+  const u2 = await mk(2, "bob");
+  const u3 = await mk(3, "carol");
+  const [idea] = await db
+    .insert(ideas)
+    .values({ title: "X", why: "w", authorId: author, state: "voting", projectId })
+    .returning({ id: ideas.id });
+  return { ideaId: idea.id, author, u2, u3 };
 }
 
 const typeCounts = (evs: { type: string }[]) =>

@@ -1,17 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTestDb, type Db } from "../db/client";
-import { users, ideas, votes } from "../db/schema";
+import { users, ideas, votes, project } from "../db/schema";
 import { listVotingIdeas } from "./queries";
 
 async function user(db: Db, githubId: number, login: string): Promise<string> {
   const [u] = await db.insert(users).values({ githubId, githubLogin: login }).returning({ id: users.id });
   return u.id;
 }
-async function idea(db: Db, title: string, authorId: string, state: "voting" | "approved"): Promise<string> {
+async function idea(db: Db, title: string, authorId: string, state: "voting" | "approved", projectId: string): Promise<string> {
   const [i] = await db
     .insert(ideas)
-    .values({ title, why: "w", authorId, state })
+    .values({ title, why: "w", authorId, state, projectId })
     .returning({ id: ideas.id });
   return i.id;
 }
@@ -19,14 +19,18 @@ async function idea(db: Db, title: string, authorId: string, state: "voting" | "
 test("idea board lists voting ideas with accurate vote counts, sorted by progress", async () => {
   const { db, close } = await createTestDb();
   try {
+    const [proj] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/t", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
     const author = await user(db, 1, "alice");
     const v1 = await user(db, 2, "bob");
     const v2 = await user(db, 3, "carol");
 
-    const a = await idea(db, "A", author, "voting"); // 2 votes
-    const b = await idea(db, "B", author, "voting"); // 1 vote
-    await idea(db, "C", author, "voting"); // 0 votes
-    await idea(db, "D", author, "approved"); // excluded (not voting)
+    const a = await idea(db, "A", author, "voting", proj.id); // 2 votes
+    const b = await idea(db, "B", author, "voting", proj.id); // 1 vote
+    await idea(db, "C", author, "voting", proj.id); // 0 votes
+    await idea(db, "D", author, "approved", proj.id); // excluded (not voting)
 
     await db.insert(votes).values([
       { ideaId: a, userId: v1 },

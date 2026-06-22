@@ -31,14 +31,14 @@ test("materializeSpec renders from the DB and emits spec.materialized with the c
       .returning({ id: project.id });
     const [r1] = await db
       .insert(requirements)
-      .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status: "shipped" })
+      .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status: "shipped", projectId: proj.id })
       .returning({ id: requirements.id });
     await db
       .insert(requirements)
-      .values({ key: "REQ-005", title: "Submit idea", description: "d", provenance: "voted", status: "planned" });
+      .values({ key: "REQ-005", title: "Submit idea", description: "d", provenance: "voted", status: "planned", projectId: proj.id });
     await db
       .insert(tasks)
-      .values({ key: "TASK-001", title: "Build the log", body: "b", requirementId: r1.id, effort: 1, risk: "low", confidence: 50 });
+      .values({ key: "TASK-001", title: "Build the log", body: "b", requirementId: r1.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id });
 
     let captured = "";
     const fakeCommit = async (content: string): Promise<{ sha: string }> => {

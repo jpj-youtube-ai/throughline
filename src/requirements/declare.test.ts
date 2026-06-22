@@ -24,7 +24,8 @@ async function seedProject(db: Awaited<ReturnType<typeof createTestDb>>["db"]): 
 test("declareRequirement mints REQ-001 on an empty table and emits requirement.declared", async () => {
   const { db, close } = await createTestDb();
   try {
-    const r = await declareRequirement(db, { title: "Overview dashboard", description: "d", provenance: "drift", why: "because" });
+    const projectId = await seedProject(db);
+    const r = await declareRequirement(db, { title: "Overview dashboard", description: "d", provenance: "drift", why: "because", projectId });
     assert.equal(r.key, "REQ-001");
 
     const [row] = await db.select().from(requirements).where(eq(requirements.id, r.id));
@@ -81,11 +82,12 @@ test("declareRequirement resolves oldest project when projectId omitted", async 
 test("declareRequirement uses max existing number + 1, not the count", async () => {
   const { db, close } = await createTestDb();
   try {
+    const projectId = await seedProject(db);
     await db.insert(requirements).values([
-      { key: "REQ-001", title: "a", description: "", provenance: "imported" },
-      { key: "REQ-005", title: "b", description: "", provenance: "imported" }, // gap
+      { key: "REQ-001", title: "a", description: "", provenance: "imported", projectId },
+      { key: "REQ-005", title: "b", description: "", provenance: "imported", projectId }, // gap
     ]);
-    const r = await declareRequirement(db, { title: "next", provenance: "drift" });
+    const r = await declareRequirement(db, { title: "next", provenance: "drift", projectId });
     assert.equal(r.key, "REQ-006");
   } finally {
     await close();

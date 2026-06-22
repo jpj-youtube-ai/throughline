@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTestDb } from "../db/client";
-import { requirements, tasks } from "../db/schema";
+import { requirements, tasks, project } from "../db/schema";
 import { reconcileSpec, reconcileStructural, structuralReconciliationForProject } from "./reconcile";
 
 test("reconcileSpec flags a mismatch (ignoring trailing whitespace)", () => {
@@ -13,16 +13,20 @@ test("reconcileSpec flags a mismatch (ignoring trailing whitespace)", () => {
 test("reconcileStructural reports stale when SPEC.md differs from the requirements", async () => {
   const { db, close } = await createTestDb();
   try {
+    const [proj] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/t", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
     const [r3] = await db
       .insert(requirements)
-      .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status: "shipped" })
+      .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status: "shipped", projectId: proj.id })
       .returning({ id: requirements.id });
     await db
       .insert(requirements)
-      .values({ key: "REQ-005", title: "Submit idea", description: "d", provenance: "voted", status: "planned" });
+      .values({ key: "REQ-005", title: "Submit idea", description: "d", provenance: "voted", status: "planned", projectId: proj.id });
     await db
       .insert(tasks)
-      .values({ key: "TASK-001", title: "Build the log", body: "b", requirementId: r3.id, effort: 1, risk: "low", confidence: 50 });
+      .values({ key: "TASK-001", title: "Build the log", body: "b", requirementId: r3.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id });
 
     // An obviously-out-of-date file is stale.
     const stale = await reconcileStructural(db, "# old hand-written spec\n");
@@ -41,14 +45,12 @@ test("reconcileStructural reports stale when SPEC.md differs from the requiremen
 test("structuralReconciliationForProject reports unbound when no project exists", async () => {
   const { db, close } = await createTestDb();
   try {
-    await db.insert(requirements).values([
-      { key: "REQ-001", title: "a", description: "", provenance: "imported" },
-      { key: "REQ-002", title: "b", description: "", provenance: "imported" },
-    ]);
+    // Without a project row, we can't insert requirements (FK constraint).
+    // The test verifies the "unbound" path — no project means reconcile returns bound:false.
     const r = await structuralReconciliationForProject(db);
     assert.equal(r.bound, false);
     assert.equal(r.specStale, false);
-    assert.equal(r.requirementCount, 2);
+    assert.equal(r.requirementCount, 0);
   } finally {
     await close();
   }

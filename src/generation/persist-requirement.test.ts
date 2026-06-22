@@ -24,9 +24,21 @@ function output(n: number): GenerationOutput {
 test("persistGenerationForRequirement links all tasks to the requirement, emits the event, and advances it to building", async () => {
   const { db, close } = await createTestDb();
   try {
+    const [p] = await db
+      .insert(project)
+      .values({
+        repoFullName: "acme/throughline",
+        defaultBranch: "main",
+        installationId: 42,
+        localClonePath: "/tmp/repo",
+        specPath: "SPEC.md",
+        claudeMdPath: "CLAUDE.md",
+      })
+      .returning({ id: project.id });
+
     const [r] = await db
       .insert(requirements)
-      .values({ key: "REQ-005", title: "Search", description: "d", provenance: "imported" })
+      .values({ key: "REQ-005", title: "Search", description: "d", provenance: "imported", projectId: p.id })
       .returning({ id: requirements.id });
 
     const { taskKeys } = await persistGenerationForRequirement(db, {
@@ -75,10 +87,21 @@ test("persistGenerationForRequirement sets tasks.projectId from requirement.proj
       .returning({ id: project.id });
     const projectId = p.id;
 
-    // Seed a task with no projectId to pollute the global count
+    // Seed a second project and a task in it to pollute the global count
+    const [otherProj] = await db
+      .insert(project)
+      .values({
+        repoFullName: "other/repo",
+        defaultBranch: "main",
+        installationId: 43,
+        localClonePath: "/tmp/other",
+        specPath: "SPEC.md",
+        claudeMdPath: "CLAUDE.md",
+      })
+      .returning({ id: project.id });
     const [otherReq] = await db
       .insert(requirements)
-      .values({ key: "REQ-099", title: "Other", description: "d", provenance: "imported" })
+      .values({ key: "REQ-099", title: "Other", description: "d", provenance: "imported", projectId: otherProj.id })
       .returning({ id: requirements.id });
     await db.insert(tasks).values({
       key: "TASK-010",
@@ -88,6 +111,7 @@ test("persistGenerationForRequirement sets tasks.projectId from requirement.proj
       effort: 1,
       risk: "low",
       confidence: 80,
+      projectId: otherProj.id,
     });
 
     const [r] = await db

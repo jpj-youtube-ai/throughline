@@ -14,10 +14,10 @@ async function seedProject(db: Db): Promise<string> {
   return proj.id;
 }
 
-async function requirementId(db: Db): Promise<string> {
+async function requirementId(db: Db, projId: string): Promise<string> {
   const [req] = await db
     .insert(requirements)
-    .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported" })
+    .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: projId })
     .returning({ id: requirements.id });
   return req.id;
 }
@@ -27,7 +27,7 @@ async function addTask(
   reqId: string,
   key: string,
   issueNumber: number | null,
-  projId?: string,
+  projId: string,
 ): Promise<void> {
   await db.insert(tasks).values({
     key,
@@ -56,7 +56,7 @@ test("issues closed/reopened mirror github_status and emit the change; unknown i
   const { db, close } = await createTestDb();
   try {
     const projId = await seedProject(db);
-    const reqId = await requirementId(db);
+    const reqId = await requirementId(db, projId);
     await addTask(db, reqId, "TASK-001", 42, projId);
 
     const r1 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 42 } });
@@ -89,7 +89,7 @@ test("a merged PR titled [TASK-NNN] closes that task; a non-merged PR does not",
   const { db, close } = await createTestDb();
   try {
     const projId = await seedProject(db);
-    const reqId = await requirementId(db);
+    const reqId = await requirementId(db, projId);
     await addTask(db, reqId, "TASK-005", null, projId);
 
     const r = await handleWebhook(db, "pull_request", {

@@ -47,16 +47,16 @@ export const project = pgTable("project", {
 
 export const requirements = pgTable("requirements", {
   id: uuid("id").primaryKey().defaultRandom(),
-  key: text("key").notNull().unique(), // REQ-NNN
+  key: text("key").notNull(), // REQ-NNN — unique per project (see table extras)
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   status: requirementStatus("status").notNull().default("planned"),
   provenance: provenance("provenance").notNull(),
   originIdeaId: uuid("origin_idea_id").references(() => ideas.id),
-  projectId: uuid("project_id").references(() => project.id),
+  projectId: uuid("project_id").notNull().references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [unique("requirements_project_key_unique").on(t.projectId, t.key)]);
 
 export const ideas = pgTable("ideas", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -66,7 +66,7 @@ export const ideas = pgTable("ideas", {
   viability: integer("viability"), // 1-10
   authorId: uuid("author_id").notNull().references(() => users.id),
   state: ideaState("state").notNull(),
-  projectId: uuid("project_id").references(() => project.id),
+  projectId: uuid("project_id").notNull().references(() => project.id),
   lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -85,7 +85,7 @@ export const votes = pgTable(
 
 export const tasks = pgTable("tasks", {
   id: uuid("id").primaryKey().defaultRandom(),
-  key: text("key").notNull().unique(), // TASK-NNN
+  key: text("key").notNull(), // TASK-NNN — unique per project (see table extras)
   title: text("title").notNull(),
   body: text("body").notNull(), // Claude Code pointers
   requirementId: uuid("requirement_id").notNull().references(() => requirements.id),
@@ -101,10 +101,10 @@ export const tasks = pgTable("tasks", {
   // Mirrored from GitHub only -- written exclusively by the webhook handler.
   githubStatus: githubStatus("github_status").notNull().default("open"),
   branchCreatedAt: timestamp("branch_created_at", { withTimezone: true }),
-  projectId: uuid("project_id").references(() => project.id),
+  projectId: uuid("project_id").notNull().references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [unique("tasks_project_key_unique").on(t.projectId, t.key)]);
 
 export const driftFlags = pgTable("drift_flags", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -128,7 +128,7 @@ export const events = pgTable("events", {
   subjectId: uuid("subject_id"),
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
   rationale: text("rationale"),
-  projectId: uuid("project_id").references(() => project.id),
+  projectId: uuid("project_id").notNull().references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // Monotonic total order -- created_at alone ties within a transaction (shared
   // now()), so the activity feed and narrative order by seq (REQ-019).
@@ -140,5 +140,5 @@ export const narratives = pgTable("narratives", {
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   eventCount: integer("event_count").notNull(),
   content: jsonb("content").$type<unknown>().notNull(),
-  projectId: uuid("project_id").references(() => project.id),
+  projectId: uuid("project_id").notNull().references(() => project.id),
 });

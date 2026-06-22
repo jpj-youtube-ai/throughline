@@ -41,7 +41,7 @@ export async function materializeNarrative(
   const result = await generate(eventDigest, eventCount);
   if (!result.ok) throw new Error(`Narrative generation failed: ${result.failure}`);
 
-  const projectId = await getActiveProjectId(db, null).catch(() => undefined);
+  const projectId = await getActiveProjectId(db, null);
 
   await db.transaction(async (tx) => {
     await tx.insert(narratives).values({ eventCount, content: result.content, projectId });

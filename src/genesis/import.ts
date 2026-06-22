@@ -6,6 +6,7 @@ import { createDb, type Db } from "../db/client";
 import { requirements } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { nextRequirementKey } from "../requirements/keys";
+import { getActiveProjectId } from "../project/active";
 
 export interface ParsedRequirement {
   key: string; // REQ-NNN
@@ -51,14 +52,12 @@ export async function importGenesisSpec(
   db: Db,
   specText: string,
   filename: string,
-  projectId?: string | null,
+  projectId: string,
 ): Promise<GenesisResult> {
   const parsed = parseSpecRequirements(specText);
   if (parsed.length === 0) {
     throw new Error("No requirements found in the spec (expected **REQ-NNN — Title.** headings).");
   }
-
-  const resolvedProjectId = projectId ?? null;
 
   return db.transaction(async (tx) => {
     const existing = await tx.select({ id: requirements.id }).from(requirements).limit(1);
@@ -70,13 +69,13 @@ export async function importGenesisSpec(
       type: "project.genesis_imported",
       subjectType: "project",
       payload: { filename, count: parsed.length },
-      projectId: resolvedProjectId ?? undefined,
+      projectId,
     });
 
     const keys: string[] = [];
     for (const r of parsed) {
-      // Mint key within this project's sequence (or global null-scoped sequence).
-      const mintedKey = await nextRequirementKey(tx, resolvedProjectId);
+      // Mint key within this project's sequence.
+      const mintedKey = await nextRequirementKey(tx, projectId);
       const [row] = await tx
         .insert(requirements)
         .values({
@@ -85,7 +84,7 @@ export async function importGenesisSpec(
           description: r.description,
           status: "planned",
           provenance: "imported",
-          projectId: resolvedProjectId,
+          projectId,
         })
         .returning({ id: requirements.id });
       await emitEvent(tx, {
@@ -93,7 +92,7 @@ export async function importGenesisSpec(
         subjectType: "requirement",
         subjectId: row.id,
         payload: { provenance: "imported", key: mintedKey, origin_idea_id: null },
-        projectId: resolvedProjectId ?? undefined,
+        projectId,
       });
       keys.push(mintedKey);
     }
@@ -109,7 +108,8 @@ async function main(): Promise<void> {
   const text = fs.readFileSync(path.resolve(specPath), "utf8");
   const { db, close } = createDb();
   try {
-    const res = await importGenesisSpec(db, text, path.basename(specPath));
+    const projectId = await getActiveProjectId(db, null);
+    const res = await importGenesisSpec(db, text, path.basename(specPath), projectId);
     console.error(`[genesis] imported ${res.count} requirements from ${res.filename}: ${res.keys[0]}…${res.keys[res.keys.length - 1]}`);
   } finally {
     await close();

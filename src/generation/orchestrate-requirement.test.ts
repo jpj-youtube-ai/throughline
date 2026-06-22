@@ -29,13 +29,22 @@ test("generateForRequirement guards: missing requirement", async () => {
   } finally { await close(); }
 });
 
-test("generateForRequirement guards: no project bound", async () => {
+test("generateForRequirement guards: no project with spec files (no local clone)", async () => {
   const { db, close } = await createTestDb();
   try {
-    const [req] = await db.insert(requirements).values({ key: "REQ-001", title: "t", description: "d", provenance: "imported" }).returning({ id: requirements.id });
+    // A requirement needs a project FK, but the project can point to a path with no spec files.
+    // The generator (fakeGenerate) will be called with empty context and should still succeed.
+    const [p] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/nonexistent", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    const [req] = await db.insert(requirements).values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: p.id }).returning({ id: requirements.id });
     const r = await generateForRequirement(db, req.id, { generate: fakeGenerate });
-    assert.equal(r.ok, false);
-    assert.match(r.failure ?? "", /no project bound/i);
+    // fakeGenerate always returns ok: true; the guard we're testing is "no project bound"
+    // which is now architecturally unreachable (requirements require a projectId FK).
+    // Instead, verify the happy path runs through without crashing.
+    assert.equal(r.ok, true);
+    assert.deepEqual(r.taskKeys, ["TASK-001"]);
   } finally { await close(); }
 });
 
@@ -45,11 +54,11 @@ test("generateForRequirement happy path with an injected generator persists task
   fs.writeFileSync(path.join(dir, "SPEC.md"), "# Spec\n");
   fs.writeFileSync(path.join(dir, "CLAUDE.md"), "# Conventions\n");
   try {
-    const [req] = await db.insert(requirements).values({ key: "REQ-001", title: "Search", description: "Full-text search", provenance: "imported" }).returning({ id: requirements.id });
-    await db.insert(project).values({
+    const [p] = await db.insert(project).values({
       repoFullName: "o/orbit", installationId: 1, defaultBranch: "main",
       localClonePath: dir, specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
-    });
+    }).returning({ id: project.id });
+    const [req] = await db.insert(requirements).values({ key: "REQ-001", title: "Search", description: "Full-text search", provenance: "imported", projectId: p.id }).returning({ id: requirements.id });
 
     const r = await generateForRequirement(db, req.id, { generate: fakeGenerate });
     assert.equal(r.ok, true);

@@ -28,22 +28,6 @@ const OUTPUT: GenerationOutput = {
   ],
 };
 
-async function seedApprovedIdea(db: Db): Promise<string> {
-  const [author] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
-  // REQ-027 makes the max 27, so a suggested REQ-028 mints as REQ-028 (like the
-  // real genesis spec). REQ-003 is the existing requirement a task links to.
-  await db.insert(requirements).values([
-    { key: "REQ-001", title: "Sign-in", description: "d", provenance: "imported" },
-    { key: "REQ-003", title: "Event log", description: "d", provenance: "imported" },
-    { key: "REQ-027", title: "Why-quality", description: "d", provenance: "imported" },
-  ]);
-  const [idea] = await db
-    .insert(ideas)
-    .values({ title: "X", why: "w", authorId: author.id, state: "approved" })
-    .returning({ id: ideas.id });
-  return idea.id;
-}
-
 async function seedProject(db: Db): Promise<string> {
   const [p] = await db
     .insert(project)
@@ -59,13 +43,30 @@ async function seedProject(db: Db): Promise<string> {
   return p.id;
 }
 
+async function seedApprovedIdea(db: Db, projectId: string): Promise<string> {
+  const [author] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
+  // REQ-027 makes the max 27, so a suggested REQ-028 mints as REQ-028 (like the
+  // real genesis spec). REQ-003 is the existing requirement a task links to.
+  await db.insert(requirements).values([
+    { key: "REQ-001", title: "Sign-in", description: "d", provenance: "imported", projectId },
+    { key: "REQ-003", title: "Event log", description: "d", provenance: "imported", projectId },
+    { key: "REQ-027", title: "Why-quality", description: "d", provenance: "imported", projectId },
+  ]);
+  const [idea] = await db
+    .insert(ideas)
+    .values({ title: "X", why: "w", authorId: author.id, state: "approved", projectId })
+    .returning({ id: ideas.id });
+  return idea.id;
+}
+
 const typeCounts = (evs: { type: string }[]) =>
   evs.reduce<Record<string, number>>((a, e) => ((a[e.type] = (a[e.type] ?? 0) + 1), a), {});
 
 test("persistGeneration mints keys, links reqs, emits tasks.generated, marks idea generated", async () => {
   const { db, close } = await createTestDb();
   try {
-    const ideaId = await seedApprovedIdea(db);
+    const projectId = await seedProject(db);
+    const ideaId = await seedApprovedIdea(db, projectId);
     const res = await persistGeneration(db, {
       ideaId,
       output: OUTPUT,
@@ -118,9 +119,10 @@ test("persistGeneration mints keys, links reqs, emits tasks.generated, marks ide
 test("persistGeneration re-mints a suggested REQ key past existing ones", async () => {
   const { db, close } = await createTestDb();
   try {
-    const ideaId = await seedApprovedIdea(db);
+    const projectId = await seedProject(db);
+    const ideaId = await seedApprovedIdea(db, projectId);
     // A REQ-028 already exists, so the suggested REQ-028 must become REQ-029.
-    await db.insert(requirements).values({ key: "REQ-028", title: "existing", description: "d", provenance: "voted" });
+    await db.insert(requirements).values({ key: "REQ-028", title: "existing", description: "d", provenance: "voted", projectId });
 
     const res = await persistGeneration(db, { ideaId, output: OUTPUT, model: "m", usage: null });
     assert.deepEqual(res.newRequirementKeys, ["REQ-029"]);
@@ -139,10 +141,11 @@ test("persistGeneration re-mints a suggested REQ key past existing ones", async 
 test("persistGeneration refuses an idea that is not approved (no partial tasks)", async () => {
   const { db, close } = await createTestDb();
   try {
+    const projectId = await seedProject(db);
     const [author] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
     const [idea] = await db
       .insert(ideas)
-      .values({ title: "X", why: "w", authorId: author.id, state: "voting" })
+      .values({ title: "X", why: "w", authorId: author.id, state: "voting", projectId })
       .returning({ id: ideas.id });
     await assert.rejects(
       persistGeneration(db, { ideaId: idea.id, output: OUTPUT, model: "m", usage: null }),
@@ -164,8 +167,12 @@ test("persistGeneration sets tasks.projectId from idea.projectId and numbers TAS
       { key: "REQ-003", title: "Event log", description: "d", provenance: "imported", projectId },
       { key: "REQ-027", title: "Why-quality", description: "d", provenance: "imported", projectId },
     ]);
-    // Seed a task in a DIFFERENT project (no projectId) to ensure numbering is isolated.
-    await db.insert(requirements).values({ key: "REQ-099", title: "Other", description: "d", provenance: "imported" });
+    // Seed a task in a DIFFERENT project to ensure numbering is isolated.
+    const [otherProj] = await db
+      .insert(project)
+      .values({ repoFullName: "other/repo", defaultBranch: "main", installationId: 99, localClonePath: "/tmp/other", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    await db.insert(requirements).values({ key: "REQ-099", title: "Other", description: "d", provenance: "imported", projectId: otherProj.id });
     const [idea] = await db
       .insert(ideas)
       .values({ title: "Scoped idea", why: "w", authorId: author.id, state: "approved", projectId })

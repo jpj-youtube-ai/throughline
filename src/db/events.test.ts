@@ -15,11 +15,17 @@ function mentionsAppendOnly(err: unknown): boolean {
   return /append-only/i.test(text);
 }
 
+async function seedProject(db: Awaited<ReturnType<typeof createTestDb>>["db"]): Promise<string> {
+  const [p] = await db.insert(project).values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/t", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" }).returning({ id: project.id });
+  return p.id;
+}
+
 test("emitEvent writes exactly one event row inside a transaction", async () => {
   const { db, close } = await createTestDb();
   try {
+    const projectId = await seedProject(db);
     await db.transaction(async (tx) => {
-      await emitEvent(tx, { type: "idea.voted", subjectType: "idea", payload: { voter: "u1" } });
+      await emitEvent(tx, { type: "idea.voted", subjectType: "idea", payload: { voter: "u1" }, projectId });
     });
     const rows = await db.select().from(events);
     assert.equal(rows.length, 1);
@@ -33,11 +39,12 @@ test("emitEvent writes exactly one event row inside a transaction", async () => 
 test("state write + event commit atomically; both roll back together on error", async () => {
   const { db, close } = await createTestDb();
   try {
+    const projectId = await seedProject(db);
     // A failing transaction must persist neither the state row nor the event.
     await assert.rejects(
       db.transaction(async (tx) => {
         await tx.insert(users).values({ githubId: 1, githubLogin: "alice" });
-        await emitEvent(tx, { type: "idea.voted", subjectType: "idea" });
+        await emitEvent(tx, { type: "idea.voted", subjectType: "idea", projectId });
         throw new Error("boom");
       }),
     );
@@ -47,7 +54,7 @@ test("state write + event commit atomically; both roll back together on error", 
     // A committing transaction persists both, together.
     await db.transaction(async (tx) => {
       await tx.insert(users).values({ githubId: 2, githubLogin: "bob" });
-      await emitEvent(tx, { type: "idea.voted", subjectType: "idea" });
+      await emitEvent(tx, { type: "idea.voted", subjectType: "idea", projectId });
     });
     assert.equal((await db.select().from(users)).length, 1);
     assert.equal((await db.select().from(events)).length, 1);
@@ -59,9 +66,10 @@ test("state write + event commit atomically; both roll back together on error", 
 test("rationale-required event without a rationale is rejected and not persisted", async () => {
   const { db, close } = await createTestDb();
   try {
+    const projectId = await seedProject(db);
     await assert.rejects(
       db.transaction(async (tx) => {
-        await emitEvent(tx, { type: "idea.submitted", subjectType: "idea" });
+        await emitEvent(tx, { type: "idea.submitted", subjectType: "idea", projectId });
       }),
       /requires a rationale/,
     );
@@ -74,8 +82,9 @@ test("rationale-required event without a rationale is rejected and not persisted
 test("events is append-only: UPDATE and DELETE are rejected at the database", async () => {
   const { db, close } = await createTestDb();
   try {
+    const projectId = await seedProject(db);
     await db.transaction(async (tx) => {
-      await emitEvent(tx, { type: "idea.voted", subjectType: "idea" });
+      await emitEvent(tx, { type: "idea.voted", subjectType: "idea", projectId });
     });
     await assert.rejects(db.execute(sql`update events set rationale = 'tamper'`), mentionsAppendOnly);
     await assert.rejects(db.execute(sql`delete from events`), mentionsAppendOnly);

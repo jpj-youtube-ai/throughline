@@ -47,24 +47,24 @@ test("createBranch rethrows non-422 errors", async () => {
 });
 
 async function seed(db: Awaited<ReturnType<typeof createTestDb>>["db"]) {
-  await db.insert(project).values({
+  const [proj] = await db.insert(project).values({
     repoFullName: "o/r", installationId: 1, defaultBranch: "main",
     localClonePath: "/tmp", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
-  });
+  }).returning({ id: project.id });
   const [req] = await db
     .insert(requirements)
-    .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported" })
+    .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: proj.id })
     .returning({ id: requirements.id });
-  return req.id;
+  return { reqId: req.id, projId: proj.id };
 }
 
 test("createBranchesForClaimedTasks branches claimed+unbranched tasks, sets the timestamp, skips the rest", async () => {
   const { db, close } = await createTestDb();
   try {
-    const reqId = await seed(db);
-    await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-a" });
-    await db.insert(tasks).values({ key: "TASK-002", title: "b", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-002-b", branchCreatedAt: new Date() });
-    await db.insert(tasks).values({ key: "TASK-003", title: "c", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "unclaimed" });
+    const { reqId, projId } = await seed(db);
+    await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-a", projectId: projId });
+    await db.insert(tasks).values({ key: "TASK-002", title: "b", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-002-b", branchCreatedAt: new Date(), projectId: projId });
+    await db.insert(tasks).values({ key: "TASK-003", title: "c", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "unclaimed", projectId: projId });
 
     const calls: string[] = [];
     const fake: CreateBranchFn = async (_i, _r, branch) => { calls.push(branch); return { created: true }; };
@@ -82,8 +82,8 @@ test("createBranchesForClaimedTasks branches claimed+unbranched tasks, sets the 
 test("createBranchesForClaimedTasks leaves branchCreatedAt null when creation throws (retried next sweep)", async () => {
   const { db, close } = await createTestDb();
   try {
-    const reqId = await seed(db);
-    await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-a" });
+    const { reqId, projId } = await seed(db);
+    await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-a", projectId: projId });
     const failing: CreateBranchFn = async () => { throw new Error("github down"); };
     await assert.rejects(() => createBranchesForClaimedTasks(db, failing), /github down/);
     const [t1] = await db.select({ b: tasks.branchCreatedAt }).from(tasks).where(eq(tasks.key, "TASK-001"));

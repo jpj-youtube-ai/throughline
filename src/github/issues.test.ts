@@ -5,19 +5,19 @@ import { project, requirements, tasks } from "../db/schema";
 import { createIssuesForTasks, type OpenIssueFn } from "./issues";
 
 async function seed(db: Db): Promise<void> {
-  await db.insert(project).values({
+  const [proj] = await db.insert(project).values({
     repoFullName: "acme/repo",
     defaultBranch: "main",
     installationId: 99,
     localClonePath: "/x",
-  });
+  }).returning({ id: project.id });
   const [req] = await db
     .insert(requirements)
-    .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported" })
+    .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: proj.id })
     .returning({ id: requirements.id });
   await db.insert(tasks).values([
-    { key: "TASK-001", title: "A", body: "b", requirementId: req.id, effort: 1, risk: "low", confidence: 50 },
-    { key: "TASK-002", title: "B", body: "b", requirementId: req.id, effort: 1, risk: "low", confidence: 50 },
+    { key: "TASK-001", title: "A", body: "b", requirementId: req.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id },
+    { key: "TASK-002", title: "B", body: "b", requirementId: req.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id },
   ]);
 }
 

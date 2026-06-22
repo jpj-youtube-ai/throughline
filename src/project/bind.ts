@@ -53,6 +53,7 @@ export async function bindProject(db: Db, input: BindProjectInput): Promise<Boun
         installation_id: input.installationId,
         default_branch: input.defaultBranch,
       },
+      projectId: row.id,
     });
 
     return row;

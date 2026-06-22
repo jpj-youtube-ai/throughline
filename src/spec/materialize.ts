@@ -38,7 +38,7 @@ export async function materializeSpec(
   const content = renderSpec(reqs, taskRefs);
   const { sha } = await commit(content);
 
-  const projectId = await getActiveProjectId(db, null).catch(() => undefined);
+  const projectId = await getActiveProjectId(db, null);
 
   await db.transaction(async (tx) => {
     await emitEvent(tx, {

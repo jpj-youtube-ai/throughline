@@ -80,7 +80,8 @@ export async function resolveDrift(db: Db, input: ResolveDriftInput): Promise<Re
       .from(tasks)
       .where(eq(tasks.id, flag.taskId))
       .limit(1);
-    const projectId = flaggedTask?.projectId ?? null;
+    const projectId = flaggedTask?.projectId;
+    if (!projectId) throw new Error("Flagged task has no project — cannot resolve drift.");
 
     let newReqKey: string | undefined;
 
@@ -104,6 +105,7 @@ export async function resolveDrift(db: Db, input: ResolveDriftInput): Promise<Re
         subjectId: req.id,
         actorId: input.resolvedBy,
         payload: { provenance: "drift", key: newReqKey, origin_idea_id: null },
+        projectId,
       });
     } else if (input.resolution === "relink") {
       if (!input.relinkReqKey) throw new Error("relink resolution needs a target requirement key.");
@@ -133,6 +135,7 @@ export async function resolveDrift(db: Db, input: ResolveDriftInput): Promise<Re
       actorId: input.resolvedBy,
       payload: { resolution: input.resolution, new_req_key: newReqKey ?? null },
       rationale: input.rationale.trim(),
+      projectId,
     });
 
     return { resolution: input.resolution, newReqKey };

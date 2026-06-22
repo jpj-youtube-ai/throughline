@@ -1,14 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTestDb, type Db } from "../db/client";
-import { users } from "../db/schema";
+import { users, project } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { reviewWhyQuality, type RationaleItem } from "./review";
 
 async function seedDecisions(db: Db) {
+  const [proj] = await db
+    .insert(project)
+    .values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/t", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+    .returning({ id: project.id });
   const [u] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
   await db.transaction((tx) =>
-    emitEvent(tx, { type: "idea.submitted", subjectType: "idea", actorId: u.id, payload: {}, rationale: "it would be good" }),
+    emitEvent(tx, { type: "idea.submitted", subjectType: "idea", actorId: u.id, payload: {}, rationale: "it would be good", projectId: proj.id }),
   );
   await db.transaction((tx) =>
     emitEvent(tx, {
@@ -17,6 +21,7 @@ async function seedDecisions(db: Db) {
       actorId: u.id,
       payload: {},
       rationale: "cuts review time in half by removing the manual triage step",
+      projectId: proj.id,
     }),
   );
 }

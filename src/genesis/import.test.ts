@@ -24,6 +24,14 @@ const FIXTURE = `## 5. Requirements
 ## 6. Glossary
 `;
 
+async function seedProject(db: Awaited<ReturnType<typeof createTestDb>>["db"]): Promise<string> {
+  const [p] = await db
+    .insert(project)
+    .values({ repoFullName: "acme/repo", defaultBranch: "main", installationId: 1, localClonePath: "/x", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+    .returning({ id: project.id });
+  return p.id;
+}
+
 test("parseSpecRequirements extracts key, title, and description; stops at section/req boundaries", () => {
   const parsed = parseSpecRequirements(FIXTURE);
   assert.equal(parsed.length, 3);
@@ -42,7 +50,8 @@ test("parseSpecRequirements extracts key, title, and description; stops at secti
 test("importGenesisSpec writes planned/imported requirements + genesis events in one transaction", async () => {
   const { db, close } = await createTestDb();
   try {
-    const res = await importGenesisSpec(db, FIXTURE, "SPEC.md");
+    const projectId = await seedProject(db);
+    const res = await importGenesisSpec(db, FIXTURE, "SPEC.md", projectId);
     assert.equal(res.count, 3);
 
     const reqs = await db.select().from(requirements);
@@ -80,8 +89,9 @@ test("importGenesisSpec writes planned/imported requirements + genesis events in
 test("genesis import is one-time: a second import is refused and writes nothing", async () => {
   const { db, close } = await createTestDb();
   try {
-    await importGenesisSpec(db, FIXTURE, "SPEC.md");
-    await assert.rejects(importGenesisSpec(db, FIXTURE, "SPEC.md"), /refused/i);
+    const projectId = await seedProject(db);
+    await importGenesisSpec(db, FIXTURE, "SPEC.md", projectId);
+    await assert.rejects(importGenesisSpec(db, FIXTURE, "SPEC.md", projectId), /refused/i);
     // Unchanged: still 3 requirements and 4 events, no partial second import.
     assert.equal((await db.select().from(requirements)).length, 3);
     assert.equal((await db.select().from(events)).length, 4);

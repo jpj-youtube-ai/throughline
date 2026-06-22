@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTestDb } from "../db/client";
-import { events } from "../db/schema";
+import { events, project } from "../db/schema";
 import { heartbeatSeries } from "./heartbeat";
 
 const DAY = 86_400_000;
@@ -9,15 +9,20 @@ const DAY = 86_400_000;
 test("heartbeatSeries buckets events by UTC day into a continuous window", async () => {
   const { db, close } = await createTestDb();
   try {
+    const [proj] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/t", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+
     const now = Date.UTC(2026, 5, 20, 12, 0, 0); // midday 2026-06-20 UTC
     const today = Date.UTC(2026, 5, 20);
 
     // 2 events today, 1 yesterday, 1 outside the 90-day window (ignored)
     await db.insert(events).values([
-      { type: "idea.submitted", subjectType: "idea", payload: {}, createdAt: new Date(today + 2 * 3_600_000) },
-      { type: "idea.voted", subjectType: "idea", payload: {}, createdAt: new Date(today + 5 * 3_600_000) },
-      { type: "task.claimed", subjectType: "task", payload: {}, createdAt: new Date(today - 1 * DAY + 9 * 3_600_000) },
-      { type: "project.bound", subjectType: "project", payload: {}, createdAt: new Date(today - 120 * DAY) },
+      { type: "idea.submitted", subjectType: "idea", payload: {}, createdAt: new Date(today + 2 * 3_600_000), projectId: proj.id },
+      { type: "idea.voted", subjectType: "idea", payload: {}, createdAt: new Date(today + 5 * 3_600_000), projectId: proj.id },
+      { type: "task.claimed", subjectType: "task", payload: {}, createdAt: new Date(today - 1 * DAY + 9 * 3_600_000), projectId: proj.id },
+      { type: "project.bound", subjectType: "project", payload: {}, createdAt: new Date(today - 120 * DAY), projectId: proj.id },
     ]);
 
     const hb = await heartbeatSeries(db, now, 90);

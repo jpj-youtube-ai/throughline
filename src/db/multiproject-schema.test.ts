@@ -47,6 +47,17 @@ test("scoped tables have a project_id column and backfill is id-agnostic", async
   }
 });
 
+test("REQ/TASK keys are unique per project, not globally", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [a] = await db.insert(project).values({ repoFullName: "o/a", installationId: 1, defaultBranch: "main", localClonePath: "/a", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" }).returning({ id: project.id });
+    const [b] = await db.insert(project).values({ repoFullName: "o/b", installationId: 2, defaultBranch: "main", localClonePath: "/b", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" }).returning({ id: project.id });
+    await db.insert(requirements).values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: a.id });
+    await db.insert(requirements).values({ key: "REQ-001", title: "t2", description: "d", provenance: "imported", projectId: b.id }); // ok: different project
+    await assert.rejects(() => db.insert(requirements).values({ key: "REQ-001", title: "dup", description: "d", provenance: "imported", projectId: a.id })); // dup within project
+  } finally { await close(); }
+});
+
 test("events is still append-only after the migration", async () => {
   const { db, close } = await createTestDb();
   try {

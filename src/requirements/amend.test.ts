@@ -23,9 +23,10 @@ async function seedProject(db: Awaited<ReturnType<typeof createTestDb>>["db"]): 
 test("amendRequirement updates the description and records requirement.amended with the why", async () => {
   const { db, close } = await createTestDb();
   try {
+    const projectId = await seedProject(db);
     const [r] = await db
       .insert(requirements)
-      .values({ key: "REQ-026", title: "Digest to team chat", description: "outbound webhook", provenance: "imported" })
+      .values({ key: "REQ-026", title: "Digest to team chat", description: "outbound webhook", provenance: "imported", projectId })
       .returning({ id: requirements.id });
 
     const res = await amendRequirement(db, {

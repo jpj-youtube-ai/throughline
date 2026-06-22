@@ -29,15 +29,16 @@ export interface DeclareRequirementInput {
 export async function declareRequirement(db: Db, input: DeclareRequirementInput): Promise<{ id: string; key: string }> {
   return db.transaction(async (tx) => {
     // Resolve projectId inside the transaction so it's consistent with the insert.
-    let projectId: string | null = input.projectId ?? null;
+    let projectId: string | undefined = input.projectId ?? undefined;
     if (!projectId) {
       const [p] = await tx
         .select({ id: project.id })
         .from(project)
         .orderBy(asc(project.createdAt))
         .limit(1);
-      projectId = p?.id ?? null;
+      projectId = p?.id ?? undefined;
     }
+    if (!projectId) throw new Error("No project bound — cannot declare requirement.");
 
     const key = await nextRequirementKey(tx, projectId);
     const [row] = await tx
@@ -59,7 +60,7 @@ export async function declareRequirement(db: Db, input: DeclareRequirementInput)
       actorId: input.actorId ?? null,
       payload: { provenance: input.provenance, key, origin_idea_id: input.originIdeaId ?? null },
       rationale: input.why ?? null,
-      projectId: projectId ?? undefined,
+      projectId,
     });
     return { id: row.id, key };
   });
