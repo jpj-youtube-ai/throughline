@@ -45,19 +45,22 @@ test("bindAndClone clones then records the binding + project.bound", async () =>
   }
 });
 
-test("bindAndClone refuses a second bind (single project / single repo)", async () => {
+test("bindAndClone adds a second project for a different repo, refuses a duplicate repo (multi-project)", async () => {
   const { db, close } = await createTestDb();
   try {
     const ok = async () => {};
     await bindAndClone(db, { repoFullName: "acme/one", installationId: 1, defaultBranch: "main" }, { getToken: async () => "t", clone: ok });
+    // a different repo is added (multi-project)
+    await bindAndClone(db, { repoFullName: "acme/two", installationId: 2, defaultBranch: "main" }, { getToken: async () => "t", clone: ok });
+    const rows = await db.select().from(project);
+    assert.equal(rows.length, 2);
+    // binding the same repo again is refused
     await assert.rejects(
-      bindAndClone(db, { repoFullName: "acme/two", installationId: 2, defaultBranch: "main" }, { getToken: async () => "t", clone: ok }),
+      bindAndClone(db, { repoFullName: "acme/one", installationId: 1, defaultBranch: "main" }, { getToken: async () => "t", clone: ok }),
       /already bound/i,
     );
-    // still only the first repo
-    const rows = await db.select().from(project);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].repoFullName, "acme/one");
+    const after = await db.select().from(project);
+    assert.equal(after.length, 2);
   } finally {
     await close();
   }
