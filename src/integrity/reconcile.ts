@@ -110,7 +110,7 @@ export async function structuralReconciliationForProject(db: Db, projectId?: str
     proj = p;
   }
   if (!proj) {
-    const reqs = await db.select({ key: requirements.key }).from(requirements);
+    const reqs = await db.select({ key: requirements.key }).from(requirements).where(projectId ? eq(requirements.projectId, projectId) : undefined);
     return { bound: false, specStale: false, requirementCount: reqs.length };
   }
   const specFile = path.join(proj.localClonePath, proj.specPath);

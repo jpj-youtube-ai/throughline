@@ -1,4 +1,4 @@
-import { asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { events, project } from "../db/schema";
 import { emitEvent } from "../db/events";
@@ -33,12 +33,12 @@ export async function generateDigest(db: Db, opts: { compose?: ComposeFn; projec
   const [last] = await db
     .select({ at: events.createdAt })
     .from(events)
-    .where(eq(events.type, "digest.generated"))
+    .where(and(eq(events.type, "digest.generated"), eq(events.projectId, proj.id)))
     .orderBy(desc(events.createdAt))
     .limit(1);
   const since = last?.at ?? null;
 
-  const fresh = (await listActivity(db, undefined, 500)).filter((it) => !since || it.createdAt > since);
+  const fresh = (await listActivity(db, proj.id, 500)).filter((it) => !since || it.createdAt > since);
   if (fresh.length === 0) return { generated: false, reason: "nothing new since the last digest" };
 
   // chronological digest text, with the why woven in
