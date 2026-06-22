@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { events, project } from "../db/schema";
 import { emitEvent } from "../db/events";
@@ -14,12 +14,20 @@ export type GenerateResult =
  * digest and record digest.generated (the watermark for "since last digest").
  * In-app only — there is no outbound delivery. Compose is injectable so tests and
  * dry-runs never touch the API. Records nothing if no project is bound or nothing
- * new has happened.
+ * new has happened. When projectId is given, scopes to that project; otherwise
+ * defaults to the oldest project.
  */
-export async function generateDigest(db: Db, opts: { compose?: ComposeFn } = {}): Promise<GenerateResult> {
+export async function generateDigest(db: Db, opts: { compose?: ComposeFn; projectId?: string } = {}): Promise<GenerateResult> {
   const compose = opts.compose ?? composeDigest;
 
-  const [proj] = await db.select().from(project).limit(1);
+  let proj: { id: string } | undefined;
+  if (opts.projectId) {
+    const [p] = await db.select({ id: project.id }).from(project).where(eq(project.id, opts.projectId)).limit(1);
+    proj = p;
+  } else {
+    const [p] = await db.select({ id: project.id }).from(project).orderBy(asc(project.createdAt)).limit(1);
+    proj = p;
+  }
   if (!proj) return { generated: false, reason: "no project bound" };
 
   const [last] = await db

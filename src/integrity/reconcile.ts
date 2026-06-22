@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
@@ -22,8 +22,8 @@ export interface StructuralReconciliation {
 }
 
 // The cheap, no-LLM half: compare the current SPEC.md (passed in) to what the
-// requirements table renders to.
-export async function reconcileStructural(db: Db, currentSpec: string): Promise<StructuralReconciliation> {
+// requirements table renders to. When projectId is given, scopes to that project.
+export async function reconcileStructural(db: Db, currentSpec: string, projectId?: string): Promise<StructuralReconciliation> {
   const reqs: SpecRequirement[] = await db
     .select({
       key: requirements.key,
@@ -31,11 +31,13 @@ export async function reconcileStructural(db: Db, currentSpec: string): Promise<
       description: requirements.description,
       status: requirements.status,
     })
-    .from(requirements);
+    .from(requirements)
+    .where(projectId ? eq(requirements.projectId, projectId) : undefined);
   const taskRefs: SpecTaskRef[] = await db
     .select({ key: tasks.key, title: tasks.title, requirementKey: requirements.key })
     .from(tasks)
-    .innerJoin(requirements, eq(tasks.requirementId, requirements.id));
+    .innerJoin(requirements, eq(tasks.requirementId, requirements.id))
+    .where(projectId ? eq(requirements.projectId, projectId) : undefined);
   const rendered = renderSpec(reqs, taskRefs);
   return { specStale: reconcileSpec(rendered, currentSpec).stale, requirementCount: reqs.length, rendered };
 }
@@ -96,16 +98,24 @@ export interface DashboardReconciliation {
 /**
  * The dashboard's cheap reconcile read: structural staleness + requirement count,
  * no LLM. Returns bound:false (and skips the file read) when no repo is bound yet.
+ * When projectId is given, scopes to that project; otherwise defaults to the oldest.
  */
-export async function structuralReconciliationForProject(db: Db): Promise<DashboardReconciliation> {
-  const [proj] = await db.select().from(project).limit(1);
+export async function structuralReconciliationForProject(db: Db, projectId?: string): Promise<DashboardReconciliation> {
+  let proj: { id: string; localClonePath: string; specPath: string } | undefined;
+  if (projectId) {
+    const [p] = await db.select({ id: project.id, localClonePath: project.localClonePath, specPath: project.specPath }).from(project).where(eq(project.id, projectId)).limit(1);
+    proj = p;
+  } else {
+    const [p] = await db.select({ id: project.id, localClonePath: project.localClonePath, specPath: project.specPath }).from(project).orderBy(asc(project.createdAt)).limit(1);
+    proj = p;
+  }
   if (!proj) {
     const reqs = await db.select({ key: requirements.key }).from(requirements);
     return { bound: false, specStale: false, requirementCount: reqs.length };
   }
   const specFile = path.join(proj.localClonePath, proj.specPath);
   const currentSpec = fs.existsSync(specFile) ? fs.readFileSync(specFile, "utf8") : "";
-  const s = await reconcileStructural(db, currentSpec);
+  const s = await reconcileStructural(db, currentSpec, proj.id);
   return { bound: true, specStale: s.specStale, requirementCount: s.requirementCount };
 }
 
@@ -120,17 +130,25 @@ export interface ReconciliationReport {
 /**
  * Full reconciliation (REQ-015): report spec staleness (structural) and code
  * mapping to no requirement (LLM). Read-only — lists divergences, never applies.
- * Re-materializing is a separate explicit action (materializeSpec).
+ * Re-materializing is a separate explicit action (materializeSpec). When projectId
+ * is given, scopes to that project; otherwise defaults to the oldest project.
  */
-export async function reconcile(db: Db): Promise<ReconciliationReport> {
-  const [proj] = await db.select().from(project).limit(1);
+export async function reconcile(db: Db, projectId?: string): Promise<ReconciliationReport> {
+  let proj: { id: string; localClonePath: string; specPath: string; claudeMdPath: string } | undefined;
+  if (projectId) {
+    const [p] = await db.select({ id: project.id, localClonePath: project.localClonePath, specPath: project.specPath, claudeMdPath: project.claudeMdPath }).from(project).where(eq(project.id, projectId)).limit(1);
+    proj = p;
+  } else {
+    const [p] = await db.select({ id: project.id, localClonePath: project.localClonePath, specPath: project.specPath, claudeMdPath: project.claudeMdPath }).from(project).orderBy(asc(project.createdAt)).limit(1);
+    proj = p;
+  }
   if (!proj) throw new Error("No project bound (REQ-002).");
 
   const specFile = path.join(proj.localClonePath, proj.specPath);
   const currentSpec = fs.existsSync(specFile) ? fs.readFileSync(specFile, "utf8") : "";
-  const structural = await reconcileStructural(db, currentSpec);
+  const structural = await reconcileStructural(db, currentSpec, proj.id);
 
-  const reqs = await db.select({ key: requirements.key, title: requirements.title }).from(requirements);
+  const reqs = await db.select({ key: requirements.key, title: requirements.title }).from(requirements).where(eq(requirements.projectId, proj.id));
   const requirementsList = reqs.map((r) => `- ${r.key} — ${r.title}`).join("\n");
   const slice = buildSlice({
     repoPath: proj.localClonePath,

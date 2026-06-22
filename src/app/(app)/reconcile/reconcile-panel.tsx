@@ -1,21 +1,24 @@
 import fs from "node:fs";
 import path from "node:path";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db/client";
 import { project } from "@/db/schema";
+import { activeProjectId } from "@/project/current";
 import { reconcileStructural } from "@/integrity/reconcile";
 import { Card, Pill, buttonClass } from "@/components/ui";
 import { rematerialize } from "./actions";
 
 export async function ReconcilePanel() {
   const db = getDb();
-  const [proj] = await db.select().from(project).limit(1);
+  const pid = await activeProjectId();
+  const [proj] = await db.select().from(project).where(eq(project.id, pid)).limit(1);
   if (!proj) {
     return <p className="text-sm text-graphite">No project bound yet (REQ-002).</p>;
   }
 
   const specFile = path.join(proj.localClonePath, proj.specPath);
   const current = fs.existsSync(specFile) ? fs.readFileSync(specFile, "utf8") : "";
-  const r = await reconcileStructural(db, current);
+  const r = await reconcileStructural(db, current, proj.id);
 
   return (
     <>

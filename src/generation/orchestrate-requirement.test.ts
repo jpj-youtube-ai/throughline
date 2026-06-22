@@ -78,6 +78,47 @@ test("generateForRequirement happy path with an injected generator persists task
   }
 });
 
+test("generateForRequirement scopes requirement context to subject's project only", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [pA] = await db.insert(project).values({
+      repoFullName: "acme/alpha", installationId: 10, defaultBranch: "main",
+      localClonePath: "/nonexistent-alpha", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+    }).returning({ id: project.id });
+    const [pB] = await db.insert(project).values({
+      repoFullName: "acme/beta", installationId: 20, defaultBranch: "main",
+      localClonePath: "/nonexistent-beta", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+    }).returning({ id: project.id });
+
+    // Project A has two requirements
+    await db.insert(requirements).values([
+      { key: "REQ-001", title: "Alpha feature 1", description: "d", provenance: "imported", projectId: pA.id },
+      { key: "REQ-002", title: "Alpha feature 2 — MUST NOT APPEAR IN B", description: "d", provenance: "imported", projectId: pA.id },
+    ]);
+    // Project B has one requirement that the generator will generate tasks for
+    const [reqB] = await db.insert(requirements).values({
+      key: "REQ-001", title: "Beta feature", description: "desc", provenance: "imported", projectId: pB.id,
+    }).returning({ id: requirements.id });
+
+    let capturedExistingList = "";
+    const capturingGenerate: typeof import("./run").generateTasks = async (opts) => {
+      // Extract existingList from the user message (it's embedded by buildUserMessage)
+      capturedExistingList = opts.userMessage;
+      return {
+        ok: true, model: "fake", usage: null,
+        output: { new_requirements: [], tasks: [{ title: "Beta task", requirement_key: "REQ-001", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80 }] },
+      };
+    };
+
+    const r = await generateForRequirement(db, reqB.id, { generate: capturingGenerate });
+    assert.equal(r.ok, true, `generation should succeed: ${r.failure}`);
+    assert.doesNotMatch(capturedExistingList, /Alpha feature 2 — MUST NOT APPEAR IN B/, "requirement context must not include project A requirements");
+    assert.doesNotMatch(capturedExistingList, /Alpha feature 1/, "requirement context must not include project A requirements");
+  } finally {
+    await close();
+  }
+});
+
 test("generateForRequirement loads the subject requirement's project (not another project)", async () => {
   const { db, close } = await createTestDb();
   const dirA = fs.mkdtempSync(path.join(os.tmpdir(), "proj-a-"));

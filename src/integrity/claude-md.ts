@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { project } from "../db/schema";
 import { emitEvent } from "../db/events";
@@ -50,14 +50,23 @@ export interface SyncClaudeMdResult {
  * Sync the managed block into CLAUDE.md (REQ-014): upsert the marked region in
  * the current content, commit it, bump convention_version, and emit
  * claude_md.synced. The commit is injectable so the upsert is testable without a
- * clone. The caller reads the current CLAUDE.md from the clone.
+ * clone. The caller reads the current CLAUDE.md from the clone. When projectId is
+ * given, scopes to that project; otherwise defaults to the oldest project.
  */
 export async function syncClaudeMd(
   db: Db,
   currentClaudeMd: string,
   commit: ClaudeCommitFn,
+  projectId?: string,
 ): Promise<SyncClaudeMdResult> {
-  const [proj] = await db.select().from(project).limit(1);
+  let proj: { id: string; conventionVersion: number } | undefined;
+  if (projectId) {
+    const [p] = await db.select({ id: project.id, conventionVersion: project.conventionVersion }).from(project).where(eq(project.id, projectId)).limit(1);
+    proj = p;
+  } else {
+    const [p] = await db.select({ id: project.id, conventionVersion: project.conventionVersion }).from(project).orderBy(asc(project.createdAt)).limit(1);
+    proj = p;
+  }
   if (!proj) throw new Error("No project bound (REQ-002).");
 
   const content = upsertManagedBlock(currentClaudeMd, managedBlockBody());

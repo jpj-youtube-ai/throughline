@@ -56,7 +56,7 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
   const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, "utf8") : "";
   const conventions = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, "utf8") : null;
 
-  const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements));
+  const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements).where(eq(requirements.projectId, proj.id)));
 
   const fixed =
     estimateTokens(specText) +
@@ -140,7 +140,7 @@ export async function generateForRequirement(
   const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, "utf8") : "";
   const conventions = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, "utf8") : null;
 
-  const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements));
+  const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements).where(eq(requirements.projectId, proj.id)));
   const seedWhy = req.description || req.title;
 
   const fixed =

@@ -60,3 +60,40 @@ test("materializeSpec renders from the DB and emits spec.materialized with the c
     await close();
   }
 });
+
+test("materializeSpec with two projects only renders the target project's requirements", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [projA] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/alpha", defaultBranch: "main", installationId: 1, localClonePath: "/a" })
+      .returning({ id: project.id });
+    const [projB] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/beta", defaultBranch: "main", installationId: 2, localClonePath: "/b" })
+      .returning({ id: project.id });
+
+    await db.insert(requirements).values({ key: "REQ-001", title: "Alpha req", description: "d", provenance: "imported", status: "planned", projectId: projA.id });
+    await db.insert(requirements).values({ key: "REQ-001", title: "Beta req", description: "d", provenance: "imported", status: "planned", projectId: projB.id });
+
+    let capturedA = "";
+    const commitA = async (content: string): Promise<{ sha: string }> => { capturedA = content; return { sha: "sha-a" }; };
+
+    // Materialize only project A
+    const resA = await materializeSpec(db, projA.id, commitA);
+    assert.equal(resA.requirementCount, 1);
+    assert.match(capturedA, /Alpha req/);
+    assert.doesNotMatch(capturedA, /Beta req/, "Project A spec must not include project B requirements");
+
+    let capturedB = "";
+    const commitB = async (content: string): Promise<{ sha: string }> => { capturedB = content; return { sha: "sha-b" }; };
+
+    // Materialize only project B
+    const resB = await materializeSpec(db, projB.id, commitB);
+    assert.equal(resB.requirementCount, 1);
+    assert.match(capturedB, /Beta req/);
+    assert.doesNotMatch(capturedB, /Alpha req/, "Project B spec must not include project A requirements");
+  } finally {
+    await close();
+  }
+});

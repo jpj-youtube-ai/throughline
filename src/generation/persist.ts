@@ -48,7 +48,10 @@ export async function persistGeneration(
 
     // Mint new requirements, re-keying the generator's suggested REQ-NNN to the
     // DB's actual next number within the project (the suggested key is a placeholder).
-    const existingReqs = await tx.select({ key: requirements.key, id: requirements.id }).from(requirements);
+    // keyToReqId is scoped to this project so tasks never link to another project's REQ.
+    const existingReqs = projectId !== null
+      ? await tx.select({ key: requirements.key, id: requirements.id }).from(requirements).where(eq(requirements.projectId, projectId))
+      : await tx.select({ key: requirements.key, id: requirements.id }).from(requirements).where(isNull(requirements.projectId));
     const keyToReqId = new Map(existingReqs.map((r) => [r.key, r.id]));
 
     // Count only requirements within this project to get the next project-scoped number.

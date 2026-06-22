@@ -67,8 +67,8 @@ export default async function DashboardPage() {
     listPipeline(db, pid),
     burnUpSeries(db, pid),
     listOpenDriftFlags(db, pid),
-    structuralReconciliationForProject(db),
-    countRationales(db),
+    structuralReconciliationForProject(db, pid),
+    countRationales(db, pid),
   ]);
 
   const tb = taskBreakdown(tasks);

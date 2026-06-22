@@ -157,6 +157,45 @@ test("persistGeneration refuses an idea that is not approved (no partial tasks)"
   }
 });
 
+test("persistGeneration keyToReqId is scoped to the idea's project — tasks cannot link to another project's REQ", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projectId = await seedProject(db);
+    const [author] = await db.insert(users).values({ githubId: 5, githubLogin: "eve" }).returning({ id: users.id });
+    // Project A has REQ-003; project B also has REQ-003 with a different meaning.
+    await db.insert(requirements).values([
+      { key: "REQ-001", title: "Sign-in", description: "d", provenance: "imported", projectId },
+      { key: "REQ-003", title: "Event log (A)", description: "d", provenance: "imported", projectId },
+      { key: "REQ-027", title: "Why-quality", description: "d", provenance: "imported", projectId },
+    ]);
+    const [otherProj] = await db
+      .insert(project)
+      .values({ repoFullName: "other/repo", defaultBranch: "main", installationId: 99, localClonePath: "/tmp/other", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    // Project B has its own REQ-003 with a different title — must not appear in A's tasks
+    const [otherReq] = await db.insert(requirements).values({ key: "REQ-003", title: "Event log (B — other project)", description: "d", provenance: "imported", projectId: otherProj.id }).returning({ id: requirements.id });
+
+    const [idea] = await db
+      .insert(ideas)
+      .values({ title: "Scoped persist", why: "w", authorId: author.id, state: "approved", projectId })
+      .returning({ id: ideas.id });
+
+    // OUTPUT tasks link to REQ-003 (an existing key) — should resolve to project A's REQ-003 only
+    const output: import("../schema").GenerationOutput = {
+      new_requirements: [],
+      tasks: [{ title: "Log task", requirement_key: "REQ-003", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80 }],
+    };
+    const res = await persistGeneration(db, { ideaId: idea.id, output, model: "m", usage: null });
+    assert.deepEqual(res.taskKeys, ["TASK-001"]);
+
+    // The task's requirementId should NOT be project B's REQ-003
+    const [t] = await db.select({ requirementId: tasks.requirementId }).from(tasks).where(eq(tasks.key, "TASK-001"));
+    assert.notEqual(t.requirementId, otherReq.id, "task must not link to project B's requirement");
+  } finally {
+    await close();
+  }
+});
+
 test("persistGeneration sets tasks.projectId from idea.projectId and numbers TASK-NNN within the project", async () => {
   const { db, close } = await createTestDb();
   try {
