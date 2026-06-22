@@ -3,9 +3,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/auth";
 import { getDb } from "@/db/client";
-import { project } from "@/db/schema";
 import { Mark } from "@/components/icons";
 import { NavRail } from "@/components/nav-rail";
+import { ProjectSwitcher } from "@/components/project-switcher";
+import { listProjects } from "@/project/list";
+import { getActiveProjectId } from "@/project/active";
 
 export const dynamic = "force-dynamic";
 
@@ -19,13 +21,8 @@ export default async function AppLayout({
   const session = await auth();
   if (!session?.user) redirect("/");
 
-  let repo: string | null = null;
-  try {
-    const [proj] = await getDb().select({ repoFullName: project.repoFullName }).from(project).limit(1);
-    repo = proj?.repoFullName ?? null;
-  } catch {
-    repo = null;
-  }
+  const projects = await listProjects(getDb());
+  const activeId = await getActiveProjectId(getDb(), session.user.id).catch(() => "");
   const who = session.user.login ?? session.user.name ?? "signed in";
 
   return (
@@ -59,20 +56,13 @@ export default async function AppLayout({
 
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-hairline bg-paper/85 px-8 py-3 backdrop-blur">
-          <a
-            href="/connect"
-            className="flex items-center gap-2 rounded-md px-2 py-1 font-mono text-xs transition-colors hover:bg-paper-sunk"
-            title="Connect or view the linked repository"
-          >
-            {repo ? (
-              <>
-                <span className="size-1.5 rounded-full bg-shipped" />
-                <span className="text-ink">{repo}</span>
-              </>
-            ) : (
-              <span className="text-spine-deep">Link a repository →</span>
-            )}
-          </a>
+          {projects.length > 0 ? (
+            <ProjectSwitcher projects={projects} activeId={activeId} />
+          ) : (
+            <a href="/connect" className="font-mono text-xs text-spine-deep">
+              Link a repository →
+            </a>
+          )}
         </header>
         <main className="mx-auto w-full max-w-7xl flex-1 px-8 py-8">{children}</main>
         {drawer}
