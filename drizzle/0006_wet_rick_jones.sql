@@ -1,0 +1,1 @@
+ALTER TABLE "project" ADD CONSTRAINT "project_repo_full_name_unique" UNIQUE("repo_full_name");

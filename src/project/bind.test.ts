@@ -39,15 +39,33 @@ test("bindProject creates the project singleton and emits project.bound in one t
   }
 });
 
-test("binding is a singleton: a second bind is refused and writes nothing", async () => {
+test("binding a second different repo succeeds and creates two project rows", async () => {
   const { db, close } = await createTestDb();
   try {
     await bindProject(db, INPUT);
-    await assert.rejects(bindProject(db, { ...INPUT, repoFullName: "acme/other" }), /already bound/i);
+    await bindProject(db, { ...INPUT, repoFullName: "acme/other" });
 
     const rows = await db.select().from(project);
-    assert.equal(rows.length, 1, "still one project");
-    assert.equal(rows[0].repoFullName, "acme/throughline", "original binding intact");
+    assert.equal(rows.length, 2, "two project rows");
+    const names = rows.map((r) => r.repoFullName);
+    assert.ok(names.includes("acme/throughline"), "first repo present");
+    assert.ok(names.includes("acme/other"), "second repo present");
+
+    const evs = await db.select().from(events);
+    assert.equal(evs.length, 2, "two project.bound events");
+  } finally {
+    await close();
+  }
+});
+
+test("binding the same repo a second time throws /already bound/ and writes nothing new", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    await bindProject(db, INPUT);
+    await assert.rejects(bindProject(db, INPUT), /already bound/i);
+
+    const rows = await db.select().from(project);
+    assert.equal(rows.length, 1, "still one project row");
     assert.equal((await db.select().from(events)).length, 1, "no second event");
   } finally {
     await close();

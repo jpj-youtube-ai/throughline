@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { project } from "../db/schema";
 import { emitEvent } from "../db/events";
@@ -16,21 +17,21 @@ export interface BoundProject {
 }
 
 /**
- * Bind the project to one GitHub repo (REQ-002): create the `project` singleton
- * and emit project.bound, in one transaction. Single project / single repo —
- * a second bind is refused. Binding is a project decision, so it is logged
- * (the "repo bound" milestone in REQ-022 derives from this event).
+ * Bind a GitHub repo as a project (REQ-002, REQ-029): insert a `project` row
+ * and emit project.bound, in one transaction. Each repo may only be bound once;
+ * binding a different repo is supported (multi-project). Binding is a project
+ * decision, so it is logged (the "repo bound" milestone in REQ-022 derives from
+ * this event).
  */
 export async function bindProject(db: Db, input: BindProjectInput): Promise<BoundProject> {
   return db.transaction(async (tx) => {
-    const existing = await tx
-      .select({ id: project.id, repoFullName: project.repoFullName })
+    const dup = await tx
+      .select({ id: project.id })
       .from(project)
+      .where(eq(project.repoFullName, input.repoFullName))
       .limit(1);
-    if (existing.length > 0) {
-      throw new Error(
-        `Project already bound to ${existing[0].repoFullName}; rebinding is not supported (single project / single repo).`,
-      );
+    if (dup.length > 0) {
+      throw new Error(`A project is already bound to ${input.repoFullName}.`);
     }
 
     const [row] = await tx

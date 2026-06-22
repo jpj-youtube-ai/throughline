@@ -32,7 +32,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// Singleton: one project / one repo / one spec.
+// Multi-project: each row is one bound repo.
 export const project = pgTable("project", {
   id: uuid("id").primaryKey().defaultRandom(),
   repoFullName: text("repo_full_name").notNull(),
@@ -43,7 +43,7 @@ export const project = pgTable("project", {
   claudeMdPath: text("claude_md_path").notNull().default("CLAUDE.md"),
   conventionVersion: integer("convention_version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => [unique("project_repo_full_name_unique").on(t.repoFullName)]);
 
 export const requirements = pgTable("requirements", {
   id: uuid("id").primaryKey().defaultRandom(),
