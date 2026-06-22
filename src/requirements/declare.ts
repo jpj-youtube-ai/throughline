@@ -39,7 +39,7 @@ export async function declareRequirement(db: Db, input: DeclareRequirementInput)
       projectId = p?.id ?? null;
     }
 
-    const key = await nextRequirementKey(tx);
+    const key = await nextRequirementKey(tx, projectId);
     const [row] = await tx
       .insert(requirements)
       .values({

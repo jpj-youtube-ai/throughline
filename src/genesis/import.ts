@@ -5,6 +5,7 @@ import { loadDotenv } from "../env";
 import { createDb, type Db } from "../db/client";
 import { requirements } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { nextRequirementKey } from "../requirements/keys";
 
 export interface ParsedRequirement {
   key: string; // REQ-NNN
@@ -42,16 +43,22 @@ export interface GenesisResult {
  * each provenance=imported / status=planned, and emit project.genesis_imported
  * plus one requirement.declared per requirement — all in one transaction.
  * One-time bootstrap: refuses if any requirements already exist.
+ *
+ * When projectId is provided, each requirement and event is scoped to that
+ * project and keys are minted within the project's own sequence.
  */
 export async function importGenesisSpec(
   db: Db,
   specText: string,
   filename: string,
+  projectId?: string | null,
 ): Promise<GenesisResult> {
   const parsed = parseSpecRequirements(specText);
   if (parsed.length === 0) {
     throw new Error("No requirements found in the spec (expected **REQ-NNN — Title.** headings).");
   }
+
+  const resolvedProjectId = projectId ?? null;
 
   return db.transaction(async (tx) => {
     const existing = await tx.select({ id: requirements.id }).from(requirements).limit(1);
@@ -63,28 +70,35 @@ export async function importGenesisSpec(
       type: "project.genesis_imported",
       subjectType: "project",
       payload: { filename, count: parsed.length },
+      projectId: resolvedProjectId ?? undefined,
     });
 
+    const keys: string[] = [];
     for (const r of parsed) {
+      // Mint key within this project's sequence (or global null-scoped sequence).
+      const mintedKey = await nextRequirementKey(tx, resolvedProjectId);
       const [row] = await tx
         .insert(requirements)
         .values({
-          key: r.key,
+          key: mintedKey,
           title: r.title,
           description: r.description,
           status: "planned",
           provenance: "imported",
+          projectId: resolvedProjectId,
         })
         .returning({ id: requirements.id });
       await emitEvent(tx, {
         type: "requirement.declared",
         subjectType: "requirement",
         subjectId: row.id,
-        payload: { provenance: "imported", key: r.key, origin_idea_id: null },
+        payload: { provenance: "imported", key: mintedKey, origin_idea_id: null },
+        projectId: resolvedProjectId ?? undefined,
       });
+      keys.push(mintedKey);
     }
 
-    return { filename, count: parsed.length, keys: parsed.map((r) => r.key) };
+    return { filename, count: parsed.length, keys };
   });
 }
 

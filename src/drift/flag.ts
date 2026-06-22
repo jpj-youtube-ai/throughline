@@ -18,7 +18,7 @@ export interface FlagDriftInput {
 export async function flagDrift(db: Db, input: FlagDriftInput): Promise<{ id: string } | null> {
   if (input.unmappedItems.length === 0) return null;
   return db.transaction(async (tx) => {
-    const [task] = await tx.select({ key: tasks.key }).from(tasks).where(eq(tasks.id, input.taskId)).limit(1);
+    const [task] = await tx.select({ key: tasks.key, projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, input.taskId)).limit(1);
     if (!task) throw new Error("Task not found.");
 
     const [row] = await tx
@@ -73,11 +73,19 @@ export async function resolveDrift(db: Db, input: ResolveDriftInput): Promise<Re
     if (!flag) throw new Error("Drift flag not found.");
     if (flag.status === "resolved") throw new Error("Drift flag already resolved.");
 
+    // Resolve projectId from the flagged task so new requirements are scoped correctly.
+    const [flaggedTask] = await tx
+      .select({ projectId: tasks.projectId })
+      .from(tasks)
+      .where(eq(tasks.id, flag.taskId))
+      .limit(1);
+    const projectId = flaggedTask?.projectId ?? null;
+
     let newReqKey: string | undefined;
 
     if (input.resolution === "new_req") {
       if (!input.newReqTitle?.trim()) throw new Error("new_req resolution needs a requirement title.");
-      newReqKey = await nextRequirementKey(tx);
+      newReqKey = await nextRequirementKey(tx, projectId);
       const [req] = await tx
         .insert(requirements)
         .values({
@@ -86,6 +94,7 @@ export async function resolveDrift(db: Db, input: ResolveDriftInput): Promise<Re
           description: input.newReqDescription ?? "",
           status: "planned",
           provenance: "drift",
+          projectId,
         })
         .returning({ id: requirements.id });
       await emitEvent(tx, {

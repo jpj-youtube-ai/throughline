@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
-import { requirements, events } from "../db/schema";
+import { requirements, events, project } from "../db/schema";
 import { parseSpecRequirements, importGenesisSpec } from "./import";
 
 const FIXTURE = `## 5. Requirements
@@ -101,5 +101,39 @@ test("parses the real SPEC.md genesis spec (REQ-001..REQ-027)", () => {
     assert.match(r.key, /^REQ-\d{3}$/);
     assert.ok(r.title.length > 0, `${r.key} has a title`);
     assert.ok(r.description.length > 0, `${r.key} has a description`);
+  }
+});
+
+test("importGenesisSpec sets requirements.projectId and emits project-scoped events when projectId provided", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p] = await db
+      .insert(project)
+      .values({
+        repoFullName: "acme/throughline",
+        defaultBranch: "main",
+        installationId: 42,
+        localClonePath: "/tmp/repo",
+        specPath: "SPEC.md",
+        claudeMdPath: "CLAUDE.md",
+      })
+      .returning({ id: project.id });
+    const projectId = p.id;
+
+    const res = await importGenesisSpec(db, FIXTURE, "SPEC.md", projectId);
+    assert.equal(res.count, 3);
+
+    const reqs = await db.select().from(requirements);
+    for (const r of reqs) {
+      assert.equal(r.projectId, projectId, `requirement ${r.key} should carry projectId`);
+    }
+
+    // Events should carry projectId
+    const allEvents = await db.select().from(events);
+    for (const e of allEvents) {
+      assert.equal(e.projectId, projectId, `event ${e.type} should carry projectId`);
+    }
+  } finally {
+    await close();
   }
 });

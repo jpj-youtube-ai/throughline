@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { users, ideas, requirements, tasks, events } from "../db/schema";
+import { users, ideas, requirements, tasks, events, project } from "../db/schema";
 import { persistGeneration } from "./persist";
 import type { GenerationOutput } from "../schema";
 
@@ -42,6 +42,21 @@ async function seedApprovedIdea(db: Db): Promise<string> {
     .values({ title: "X", why: "w", authorId: author.id, state: "approved" })
     .returning({ id: ideas.id });
   return idea.id;
+}
+
+async function seedProject(db: Db): Promise<string> {
+  const [p] = await db
+    .insert(project)
+    .values({
+      repoFullName: "acme/throughline",
+      defaultBranch: "main",
+      installationId: 42,
+      localClonePath: "/tmp/repo",
+      specPath: "SPEC.md",
+      claudeMdPath: "CLAUDE.md",
+    })
+    .returning({ id: project.id });
+  return p.id;
 }
 
 const typeCounts = (evs: { type: string }[]) =>
@@ -134,6 +149,46 @@ test("persistGeneration refuses an idea that is not approved (no partial tasks)"
       /not approved/i,
     );
     assert.equal((await db.select().from(tasks)).length, 0, "no partial tasks written");
+  } finally {
+    await close();
+  }
+});
+
+test("persistGeneration sets tasks.projectId from idea.projectId and numbers TASK-NNN within the project", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projectId = await seedProject(db);
+    const [author] = await db.insert(users).values({ githubId: 2, githubLogin: "bob" }).returning({ id: users.id });
+    await db.insert(requirements).values([
+      { key: "REQ-001", title: "Sign-in", description: "d", provenance: "imported", projectId },
+      { key: "REQ-003", title: "Event log", description: "d", provenance: "imported", projectId },
+      { key: "REQ-027", title: "Why-quality", description: "d", provenance: "imported", projectId },
+    ]);
+    // Seed a task in a DIFFERENT project (no projectId) to ensure numbering is isolated.
+    await db.insert(requirements).values({ key: "REQ-099", title: "Other", description: "d", provenance: "imported" });
+    const [idea] = await db
+      .insert(ideas)
+      .values({ title: "Scoped idea", why: "w", authorId: author.id, state: "approved", projectId })
+      .returning({ id: ideas.id });
+
+    const res = await persistGeneration(db, { ideaId: idea.id, output: OUTPUT, model: "m", usage: null });
+    // Even though TASK-NNN would be higher if counting all tasks, it scopes to projectId
+    assert.deepEqual(res.taskKeys, ["TASK-001", "TASK-002"]);
+
+    const allTasks = await db.select().from(tasks);
+    for (const t of allTasks) {
+      assert.equal(t.projectId, projectId, `task ${t.key} should carry projectId`);
+    }
+
+    // New requirements minted in this run should also carry projectId
+    const newReq = (await db.select().from(requirements).where(eq(requirements.key, res.newRequirementKeys[0])))[0];
+    assert.equal(newReq.projectId, projectId, "minted requirement should carry projectId");
+
+    // Events should carry projectId
+    const evs = await db.select().from(events);
+    const genEvent = evs.find((e) => e.type === "tasks.generated");
+    assert.ok(genEvent, "tasks.generated event present");
+    assert.equal(genEvent!.projectId, projectId, "tasks.generated event should carry projectId");
   } finally {
     await close();
   }

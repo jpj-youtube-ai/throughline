@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { ideas, requirements, tasks } from "../db/schema";
 import { emitEvent } from "../db/events";
@@ -34,7 +34,7 @@ export async function persistGeneration(
 ): Promise<PersistGenerationResult> {
   return db.transaction(async (tx) => {
     const [idea] = await tx
-      .select({ state: ideas.state })
+      .select({ state: ideas.state, projectId: ideas.projectId })
       .from(ideas)
       .where(eq(ideas.id, input.ideaId))
       .for("update")
@@ -44,11 +44,18 @@ export async function persistGeneration(
       throw new Error(`Idea is ${idea.state}, not approved — refusing to generate.`);
     }
 
+    const projectId = idea.projectId ?? null;
+
     // Mint new requirements, re-keying the generator's suggested REQ-NNN to the
-    // DB's actual next number (the suggested key is a placeholder).
+    // DB's actual next number within the project (the suggested key is a placeholder).
     const existingReqs = await tx.select({ key: requirements.key, id: requirements.id }).from(requirements);
     const keyToReqId = new Map(existingReqs.map((r) => [r.key, r.id]));
-    let reqMax = maxNumber(existingReqs.map((r) => r.key));
+
+    // Count only requirements within this project to get the next project-scoped number.
+    const projectReqKeys = projectId !== null
+      ? (await tx.select({ key: requirements.key }).from(requirements).where(eq(requirements.projectId, projectId))).map((r) => r.key)
+      : (await tx.select({ key: requirements.key }).from(requirements).where(isNull(requirements.projectId))).map((r) => r.key);
+    let reqMax = maxNumber(projectReqKeys);
 
     const suggestedToMinted = new Map<string, string>();
     const newRequirementKeys: string[] = [];
@@ -63,6 +70,7 @@ export async function persistGeneration(
           status: "planned",
           provenance: "voted",
           originIdeaId: input.ideaId,
+          projectId,
         })
         .returning({ id: requirements.id });
       keyToReqId.set(mintedKey, row.id);
@@ -74,12 +82,16 @@ export async function persistGeneration(
         subjectId: row.id,
         actorId: input.actorId ?? null,
         payload: { provenance: "voted", key: mintedKey, origin_idea_id: input.ideaId },
+        projectId: projectId ?? undefined,
       });
     }
 
     // Mint tasks, resolving each REQ link (existing key, or a re-keyed new one).
-    const existingTasks = await tx.select({ key: tasks.key }).from(tasks);
-    let taskMax = maxNumber(existingTasks.map((t) => t.key));
+    // Task numbering is scoped per project.
+    const projectTaskKeys = projectId !== null
+      ? (await tx.select({ key: tasks.key }).from(tasks).where(eq(tasks.projectId, projectId))).map((t) => t.key)
+      : (await tx.select({ key: tasks.key }).from(tasks).where(isNull(tasks.projectId))).map((t) => t.key);
+    let taskMax = maxNumber(projectTaskKeys);
 
     const taskKeys: string[] = [];
     const touchedReqs = new Set<string>();
@@ -99,6 +111,7 @@ export async function persistGeneration(
         effort: t.effort,
         risk: t.risk,
         confidence: t.confidence,
+        projectId,
       });
       taskKeys.push(taskKey);
       touchedReqs.add(requirementId);
@@ -115,6 +128,7 @@ export async function persistGeneration(
         model: input.model,
         tokens: input.usage,
       },
+      projectId: projectId ?? undefined,
     });
 
     // Each requirement that received a task is now in progress (planned →
@@ -150,18 +164,23 @@ export async function persistGenerationForRequirement(
 ): Promise<{ taskKeys: string[] }> {
   return db.transaction(async (tx) => {
     const [req] = await tx
-      .select({ id: requirements.id })
+      .select({ id: requirements.id, projectId: requirements.projectId })
       .from(requirements)
       .where(eq(requirements.id, input.reqId))
       .for("update")
       .limit(1);
     if (!req) throw new Error("Requirement not found.");
 
+    const projectId = req.projectId ?? null;
+
     const existingForReq = await tx.select({ id: tasks.id }).from(tasks).where(eq(tasks.requirementId, input.reqId)).limit(1);
     if (existingForReq.length > 0) throw new Error("Requirement already has tasks — refusing to generate.");
 
-    const allTasks = await tx.select({ key: tasks.key }).from(tasks);
-    let taskMax = maxNumber(allTasks.map((t) => t.key));
+    // Task numbering scoped per project.
+    const projectTaskKeys = projectId !== null
+      ? (await tx.select({ key: tasks.key }).from(tasks).where(eq(tasks.projectId, projectId))).map((t) => t.key)
+      : (await tx.select({ key: tasks.key }).from(tasks).where(isNull(tasks.projectId))).map((t) => t.key);
+    let taskMax = maxNumber(projectTaskKeys);
 
     const taskKeys: string[] = [];
     for (const t of input.output.tasks) {
@@ -174,6 +193,7 @@ export async function persistGenerationForRequirement(
         effort: t.effort,
         risk: t.risk,
         confidence: t.confidence,
+        projectId,
       });
       taskKeys.push(taskKey);
     }
@@ -184,6 +204,7 @@ export async function persistGenerationForRequirement(
       subjectId: input.reqId,
       actorId: input.actorId ?? null,
       payload: { task_keys: taskKeys, req_keys: [], model: input.model, tokens: input.usage },
+      projectId: projectId ?? undefined,
     });
 
     await reconcileRequirementStatus(tx, input.reqId, input.actorId ?? null);

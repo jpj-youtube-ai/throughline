@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
-import { requirements, tasks, events } from "../db/schema";
+import { requirements, tasks, events, project } from "../db/schema";
 import { persistGenerationForRequirement } from "./persist";
 import type { GenerationOutput } from "../schema";
 
@@ -54,6 +54,64 @@ test("persistGenerationForRequirement links all tasks to the requirement, emits 
       () => persistGenerationForRequirement(db, { reqId: r.id, output: output(1), model: "m", usage: null }),
       /already has tasks/,
     );
+  } finally {
+    await close();
+  }
+});
+
+test("persistGenerationForRequirement sets tasks.projectId from requirement.projectId and numbers within the project", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p] = await db
+      .insert(project)
+      .values({
+        repoFullName: "acme/throughline",
+        defaultBranch: "main",
+        installationId: 42,
+        localClonePath: "/tmp/repo",
+        specPath: "SPEC.md",
+        claudeMdPath: "CLAUDE.md",
+      })
+      .returning({ id: project.id });
+    const projectId = p.id;
+
+    // Seed a task with no projectId to pollute the global count
+    const [otherReq] = await db
+      .insert(requirements)
+      .values({ key: "REQ-099", title: "Other", description: "d", provenance: "imported" })
+      .returning({ id: requirements.id });
+    await db.insert(tasks).values({
+      key: "TASK-010",
+      title: "existing task",
+      body: "body",
+      requirementId: otherReq.id,
+      effort: 1,
+      risk: "low",
+      confidence: 80,
+    });
+
+    const [r] = await db
+      .insert(requirements)
+      .values({ key: "REQ-005", title: "Search", description: "d", provenance: "imported", projectId })
+      .returning({ id: requirements.id });
+
+    const { taskKeys } = await persistGenerationForRequirement(db, {
+      reqId: r.id,
+      output: output(2),
+      model: "claude-opus-4-8",
+      usage: { input_tokens: 10, output_tokens: 20 },
+    });
+    // Should start at TASK-001 within the project (TASK-010 is in a different project)
+    assert.deepEqual(taskKeys, ["TASK-001", "TASK-002"]);
+
+    const rows = await db.select().from(tasks).where(eq(tasks.requirementId, r.id));
+    for (const t of rows) {
+      assert.equal(t.projectId, projectId, `task ${t.key} should carry projectId`);
+    }
+
+    const ev = (await db.select().from(events).where(eq(events.subjectId, r.id))).find((e) => e.type === "tasks.generated");
+    assert.ok(ev, "tasks.generated event present");
+    assert.equal(ev!.projectId, projectId, "event should carry projectId");
   } finally {
     await close();
   }
