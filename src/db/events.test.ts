@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
 import { createTestDb } from "./client";
 import { emitEvent } from "./events";
-import { users, events } from "./schema";
+import { users, events, project } from "./schema";
 
 // Drizzle wraps the database error as "Failed query: …" and puts the Postgres
 // error (with our trigger's message) in `.cause`. Check the whole chain.
@@ -83,4 +83,15 @@ test("events is append-only: UPDATE and DELETE are rejected at the database", as
   } finally {
     await close();
   }
+});
+
+test("emitEvent writes project_id", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p] = await db.insert(project).values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/t", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" }).returning({ id: project.id });
+    let id = "";
+    await db.transaction(async (tx) => { id = (await emitEvent(tx, { type: "project.bound", subjectType: "project", subjectId: p.id, projectId: p.id })).id; });
+    const [e] = await db.select({ pid: events.projectId }).from(events).where(eq(events.id, id));
+    assert.equal(e.pid, p.id);
+  } finally { await close(); }
 });

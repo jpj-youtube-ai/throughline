@@ -44,6 +44,7 @@ export interface EmitEventInput {
   actorId?: string | null; // uuid; null/omitted = system
   payload?: Record<string, unknown>;
   rationale?: string | null;
+  projectId?: string; // the project this event belongs to (multi-project). Required from Task 7.
 }
 
 /**
@@ -65,6 +66,7 @@ export async function emitEvent(tx: Tx, input: EmitEventInput): Promise<{ id: st
       subjectId: input.subjectId ?? null,
       payload: input.payload ?? {},
       rationale: input.rationale ?? null,
+      projectId: input.projectId ?? null,
     })
     .returning({ id: events.id });
   return row;

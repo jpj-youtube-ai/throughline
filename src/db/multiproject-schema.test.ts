@@ -2,7 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "./client";
-import { project, requirements } from "./schema";
+import { project, requirements, events } from "./schema";
+import { emitEvent } from "./events";
+
+// Drizzle wraps the database error as "Failed query: …" and puts the Postgres
+// error (with our trigger's message) in `.cause`. Check the whole chain.
+function mentionsAppendOnly(err: unknown): boolean {
+  const cause = err instanceof Error ? (err.cause as unknown) : undefined;
+  const text = `${err instanceof Error ? err.message : String(err)} ${
+    cause instanceof Error ? cause.message : String(cause ?? "")
+  }`;
+  return /append-only/i.test(text);
+}
 
 test("scoped tables have a project_id column and backfill is id-agnostic", async () => {
   const { db, close } = await createTestDb();
@@ -36,6 +47,28 @@ test("scoped tables have a project_id column and backfill is id-agnostic", async
   }
 });
 
-// NOTE: The second test from the brief (events append-only after migration, using
-// emitEvent with projectId) is omitted here — it depends on Task 3 updating
-// emitEvent to accept projectId. It will be added when Task 3 lands.
+test("events is still append-only after the migration", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p] = await db
+      .insert(project)
+      .values({
+        repoFullName: "o/r",
+        installationId: 1,
+        defaultBranch: "main",
+        localClonePath: "/t",
+        specPath: "SPEC.md",
+        claudeMdPath: "CLAUDE.md",
+      })
+      .returning({ id: project.id });
+    await db.transaction(async (tx) => {
+      await emitEvent(tx, { type: "project.bound", subjectType: "project", subjectId: p.id, projectId: p.id });
+    });
+    await assert.rejects(
+      db.update(events).set({ rationale: "x" }),
+      mentionsAppendOnly,
+    );
+  } finally {
+    await close();
+  }
+});
