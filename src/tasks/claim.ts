@@ -31,7 +31,7 @@ export interface ClaimResult {
 export async function claimTask(db: Db, taskId: string, userId: string): Promise<ClaimResult> {
   return db.transaction(async (tx) => {
     const [task] = await tx
-      .select({ key: tasks.key, title: tasks.title, claimState: tasks.claimState })
+      .select({ key: tasks.key, title: tasks.title, claimState: tasks.claimState, projectId: tasks.projectId })
       .from(tasks)
       .where(eq(tasks.id, taskId))
       .for("update")
@@ -50,6 +50,7 @@ export async function claimTask(db: Db, taskId: string, userId: string): Promise
       subjectId: taskId,
       actorId: userId,
       payload: { claimer: userId, branch: branchName },
+      projectId: task.projectId ?? undefined,
     });
     return { claimed: true, branchName };
   });
@@ -63,7 +64,7 @@ export interface UnclaimResult {
 export async function unclaimTask(db: Db, taskId: string, userId: string): Promise<UnclaimResult> {
   return db.transaction(async (tx) => {
     const [task] = await tx
-      .select({ claimState: tasks.claimState, claimUserId: tasks.claimUserId })
+      .select({ claimState: tasks.claimState, claimUserId: tasks.claimUserId, projectId: tasks.projectId })
       .from(tasks)
       .where(eq(tasks.id, taskId))
       .for("update")
@@ -81,6 +82,7 @@ export async function unclaimTask(db: Db, taskId: string, userId: string): Promi
       subjectType: "task",
       subjectId: taskId,
       actorId: userId,
+      projectId: task.projectId ?? undefined,
     });
     return { unclaimed: true };
   });

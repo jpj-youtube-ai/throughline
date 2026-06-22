@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { requirements, tasks } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { getActiveProjectId } from "../project/active";
 import { renderSpec, type SpecRequirement, type SpecTaskRef } from "./render";
 import { repoCommit } from "./commit";
 
@@ -37,11 +38,14 @@ export async function materializeSpec(
   const content = renderSpec(reqs, taskRefs);
   const { sha } = await commit(content);
 
+  const projectId = await getActiveProjectId(db, null).catch(() => undefined);
+
   await db.transaction(async (tx) => {
     await emitEvent(tx, {
       type: "spec.materialized",
       subjectType: "project",
       payload: { count: reqs.length, commit_sha: sha },
+      projectId,
     });
   });
 

@@ -1,6 +1,7 @@
 import type { Db } from "../db/client";
 import { narratives } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { getActiveProjectId } from "../project/active";
 import { listActivity } from "../events/feed";
 import { generateNarrative, type GenerateNarrativeResult } from "./generate";
 
@@ -40,12 +41,15 @@ export async function materializeNarrative(
   const result = await generate(eventDigest, eventCount);
   if (!result.ok) throw new Error(`Narrative generation failed: ${result.failure}`);
 
+  const projectId = await getActiveProjectId(db, null).catch(() => undefined);
+
   await db.transaction(async (tx) => {
-    await tx.insert(narratives).values({ eventCount, content: result.content });
+    await tx.insert(narratives).values({ eventCount, content: result.content, projectId });
     await emitEvent(tx, {
       type: "narrative.generated",
       subjectType: "project",
       payload: { event_count: eventCount, chapters: result.content.chapters.length },
+      projectId,
     });
   });
 

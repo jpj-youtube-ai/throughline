@@ -6,23 +6,22 @@ import { users, project, events } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { generateDigest } from "./send";
 
-async function seedProjectWithActivity(db: Db) {
-  await db.insert(project).values({
-    repoFullName: "acme/repo",
-    defaultBranch: "main",
-    installationId: 1,
-    localClonePath: "/x",
-  });
+async function seedProjectWithActivity(db: Db): Promise<string> {
+  const [proj] = await db
+    .insert(project)
+    .values({ repoFullName: "acme/repo", defaultBranch: "main", installationId: 1, localClonePath: "/x" })
+    .returning({ id: project.id });
   const [u] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
   await db.transaction((tx) =>
     emitEvent(tx, { type: "idea.approved", subjectType: "idea", actorId: u.id, payload: {}, rationale: "reached the gate" }),
   );
+  return proj.id;
 }
 
 test("generateDigest composes, records digest.generated, and advances the watermark", async () => {
   const { db, close } = await createTestDb();
   try {
-    await seedProjectWithActivity(db);
+    const projId = await seedProjectWithActivity(db);
     const fakeCompose = async () => ({ ok: true as const, text: "Alice approved an idea." });
 
     const res = await generateDigest(db, { compose: fakeCompose });
@@ -32,6 +31,7 @@ test("generateDigest composes, records digest.generated, and advances the waterm
     const gen = await db.select().from(events).where(eq(events.type, "digest.generated"));
     assert.equal(gen.length, 1);
     assert.equal((gen[0].payload as { event_count: number }).event_count, 1);
+    assert.equal(gen[0].projectId, projId, "digest.generated event carries projectId");
 
     // nothing new now → no second record (watermark advanced)
     const again = await generateDigest(db, { compose: fakeCompose });

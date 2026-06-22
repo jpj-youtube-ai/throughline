@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
-import { users, requirements, narratives, events } from "../db/schema";
+import { users, requirements, narratives, events, project } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { materializeNarrative } from "./materialize";
 
@@ -21,6 +21,10 @@ test("materializeNarrative throws on an empty log", async () => {
 test("materializeNarrative builds a grounded digest, stores chapters, emits narrative.generated", async () => {
   const { db, close } = await createTestDb();
   try {
+    const [proj] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/repo", defaultBranch: "main", installationId: 1, localClonePath: "/x" })
+      .returning({ id: project.id });
     const [u] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
     const [r] = await db
       .insert(requirements)
@@ -50,10 +54,12 @@ test("materializeNarrative builds a grounded digest, stores chapters, emits narr
     const rows = await db.select().from(narratives);
     assert.equal(rows.length, 1);
     assert.equal(rows[0].eventCount, 2);
+    assert.equal(rows[0].projectId, proj.id, "narratives.projectId is set");
 
     const evs = await db.select().from(events).where(eq(events.type, "narrative.generated"));
     assert.equal(evs.length, 1);
     assert.deepEqual(evs[0].payload, { event_count: 2, chapters: 1 });
+    assert.equal(evs[0].projectId, proj.id, "narrative.generated event carries projectId");
   } finally {
     await close();
   }

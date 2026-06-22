@@ -56,10 +56,12 @@ test("syncClaudeMd writes the block, bumps convention_version, emits claude_md.s
     assert.match(captured, /never hand-edit/i);
     assert.ok(captured.startsWith("# Existing CLAUDE.md\n"), "existing content preserved");
 
-    assert.equal((await db.select().from(project))[0].conventionVersion, 2);
+    const projRow = (await db.select().from(project))[0];
+    assert.equal(projRow.conventionVersion, 2);
     const evs = await db.select().from(events).where(eq(events.type, "claude_md.synced"));
     assert.equal(evs.length, 1);
     assert.deepEqual(evs[0].payload, { convention_version: 2 });
+    assert.equal(evs[0].projectId, projRow.id, "claude_md.synced event carries projectId");
   } finally {
     await close();
   }

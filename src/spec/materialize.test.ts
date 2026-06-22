@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
-import { requirements, tasks, events } from "../db/schema";
+import { requirements, tasks, events, project } from "../db/schema";
 import { renderSpec } from "./render";
 import { materializeSpec } from "./materialize";
 
@@ -25,6 +25,10 @@ test("renderSpec groups requirements into shipped / planned with linked tasks", 
 test("materializeSpec renders from the DB and emits spec.materialized with the commit sha", async () => {
   const { db, close } = await createTestDb();
   try {
+    const [proj] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/repo", defaultBranch: "main", installationId: 1, localClonePath: "/x" })
+      .returning({ id: project.id });
     const [r1] = await db
       .insert(requirements)
       .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status: "shipped" })
@@ -51,6 +55,7 @@ test("materializeSpec renders from the DB and emits spec.materialized with the c
     const evs = await db.select().from(events).where(eq(events.type, "spec.materialized"));
     assert.equal(evs.length, 1);
     assert.deepEqual(evs[0].payload, { count: 2, commit_sha: "abc123" });
+    assert.equal(evs[0].projectId, proj.id, "spec.materialized event carries projectId");
   } finally {
     await close();
   }

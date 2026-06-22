@@ -30,6 +30,7 @@ export async function flagDrift(db: Db, input: FlagDriftInput): Promise<{ id: st
       subjectType: "task",
       subjectId: input.taskId,
       payload: { task_key: task.key, pr_number: input.prNumber, unmapped_items: input.unmappedItems },
+      projectId: task.projectId ?? undefined,
     });
     return { id: row.id };
   });

@@ -74,7 +74,7 @@ export async function handleWebhook(
         ? eq(tasks.githubIssueNumber, target.issueNumber!)
         : eq(tasks.key, target.taskKey!);
     const [task] = await tx
-      .select({ id: tasks.id, key: tasks.key, status: tasks.githubStatus, requirementId: tasks.requirementId })
+      .select({ id: tasks.id, key: tasks.key, status: tasks.githubStatus, requirementId: tasks.requirementId, projectId: tasks.projectId })
       .from(tasks)
       .where(where)
       .for("update")
@@ -88,6 +88,7 @@ export async function handleWebhook(
       subjectType: "task",
       subjectId: task.id,
       payload: { from: task.status, to: target.to },
+      projectId: task.projectId ?? undefined,
     });
 
     // A merge can complete a requirement (→ shipped); a reopen can un-complete it

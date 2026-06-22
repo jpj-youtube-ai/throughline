@@ -71,6 +71,7 @@ export async function syncClaudeMd(
       subjectType: "project",
       subjectId: proj.id,
       payload: { convention_version: nextVersion },
+      projectId: proj.id,
     });
   });
 

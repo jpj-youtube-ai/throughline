@@ -54,6 +54,7 @@ export async function generateDigest(db: Db, opts: { compose?: ComposeFn } = {})
       subjectType: "project",
       subjectId: proj.id,
       payload: { text: composed.text, event_count: fresh.length, since: since ? since.toISOString() : null },
+      projectId: proj.id,
     });
   });
 

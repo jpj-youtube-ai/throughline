@@ -2,30 +2,35 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { users, requirements, tasks, driftFlags, events } from "../db/schema";
+import { users, requirements, tasks, driftFlags, events, project } from "../db/schema";
 import { flagDrift, resolveDrift } from "./flag";
 
 interface Seed {
   taskId: string;
   reqBId: string;
   userId: string;
+  projectId: string;
 }
 
 async function seed(db: Db): Promise<Seed> {
+  const [proj] = await db
+    .insert(project)
+    .values({ repoFullName: "acme/repo", defaultBranch: "main", installationId: 1, localClonePath: "/x" })
+    .returning({ id: project.id });
   const [user] = await db.insert(users).values({ githubId: 1, githubLogin: "alice" }).returning({ id: users.id });
   const [reqA] = await db
     .insert(requirements)
-    .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported" })
+    .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", projectId: proj.id })
     .returning({ id: requirements.id });
   const [reqB] = await db
     .insert(requirements)
-    .values({ key: "REQ-005", title: "Submit idea", description: "d", provenance: "imported" })
+    .values({ key: "REQ-005", title: "Submit idea", description: "d", provenance: "imported", projectId: proj.id })
     .returning({ id: requirements.id });
   const [task] = await db
     .insert(tasks)
-    .values({ key: "TASK-001", title: "t", body: "b", requirementId: reqA.id, effort: 1, risk: "low", confidence: 50 })
+    .values({ key: "TASK-001", title: "t", body: "b", requirementId: reqA.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id })
     .returning({ id: tasks.id });
-  return { taskId: task.id, reqBId: reqB.id, userId: user.id };
+  return { taskId: task.id, reqBId: reqB.id, userId: user.id, projectId: proj.id };
 }
 
 async function flag(db: Db, taskId: string): Promise<string> {
@@ -36,7 +41,7 @@ async function flag(db: Db, taskId: string): Promise<string> {
 test("flagDrift records an open flag + drift.flagged; empty items -> no flag", async () => {
   const { db, close } = await createTestDb();
   try {
-    const { taskId } = await seed(db);
+    const { taskId, projectId } = await seed(db);
     assert.equal(await flagDrift(db, { taskId, prNumber: 7, unmappedItems: [] }), null);
 
     const f = await flagDrift(db, { taskId, prNumber: 7, unmappedItems: ["added a billing module"] });
@@ -45,7 +50,9 @@ test("flagDrift records an open flag + drift.flagged; empty items -> no flag", a
     assert.equal(flags.length, 1);
     assert.equal(flags[0].status, "open");
     assert.equal(flags[0].prNumber, 7);
-    assert.equal((await db.select().from(events).where(eq(events.type, "drift.flagged"))).length, 1);
+    const flaggedEvs = await db.select().from(events).where(eq(events.type, "drift.flagged"));
+    assert.equal(flaggedEvs.length, 1);
+    assert.equal(flaggedEvs[0].projectId, projectId, "drift.flagged event carries projectId");
   } finally {
     await close();
   }
