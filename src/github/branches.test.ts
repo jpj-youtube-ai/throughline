@@ -105,9 +105,9 @@ test("createBranchesForClaimedTasks throws when no project is bound", async () =
 test("createBranchesForClaimedTasks posts a kickoff comment for a task with an issue number, skips one without", async () => {
   const { db, close } = await createTestDb();
   try {
-    const reqId = await seed(db);
-    await db.insert(tasks).values({ key: "TASK-010", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-010-a", githubIssueNumber: 42 });
-    await db.insert(tasks).values({ key: "TASK-011", title: "b", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-011-b" });
+    const { reqId, projId } = await seed(db);
+    await db.insert(tasks).values({ key: "TASK-010", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-010-a", githubIssueNumber: 42, projectId: projId });
+    await db.insert(tasks).values({ key: "TASK-011", title: "b", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-011-b", projectId: projId });
 
     const branchFake: CreateBranchFn = async () => ({ created: true });
     const comments: { issueNumber: number; body: string }[] = [];
