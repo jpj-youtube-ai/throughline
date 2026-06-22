@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { eq } from "drizzle-orm";
 import { loadDotenv } from "../env";
 import { createDb, type Db } from "../db/client";
 import { requirements } from "../db/schema";
@@ -60,7 +61,11 @@ export async function importGenesisSpec(
   }
 
   return db.transaction(async (tx) => {
-    const existing = await tx.select({ id: requirements.id }).from(requirements).limit(1);
+    const existing = await tx
+      .select({ id: requirements.id })
+      .from(requirements)
+      .where(eq(requirements.projectId, projectId))
+      .limit(1);
     if (existing.length > 0) {
       throw new Error("Genesis import refused: the requirements table is not empty.");
     }

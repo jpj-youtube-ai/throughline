@@ -2,6 +2,7 @@ import { getDb } from "@/db/client";
 import { burnUpSeries } from "@/metrics/burnup";
 import { BurnUpChart } from "@/components/burnup-chart";
 import { Card, Empty } from "@/components/ui";
+import { activeProjectId } from "@/project/current";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -13,7 +14,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export async function BurnUpPanel() {
-  const data = await burnUpSeries(getDb());
+  const pid = await activeProjectId();
+  const data = await burnUpSeries(getDb(), pid);
   const pct = data.scope ? Math.round((data.done / data.scope) * 100) : 0;
 
   return (

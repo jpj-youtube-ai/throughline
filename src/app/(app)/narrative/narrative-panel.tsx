@@ -2,9 +2,11 @@ import { getDb } from "@/db/client";
 import { getLatestNarrative } from "@/narrative/queries";
 import { Empty, buttonClass } from "@/components/ui";
 import { regenerate } from "./actions";
+import { activeProjectId } from "@/project/current";
 
 export async function NarrativePanel() {
-  const n = await getLatestNarrative(getDb());
+  const pid = await activeProjectId();
+  const n = await getLatestNarrative(getDb(), pid);
 
   return (
     <>

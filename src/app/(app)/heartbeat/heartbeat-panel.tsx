@@ -2,6 +2,7 @@ import { getDb } from "@/db/client";
 import { heartbeatSeries } from "@/metrics/heartbeat";
 import { HeartbeatChart } from "@/components/heartbeat-chart";
 import { Card, Empty } from "@/components/ui";
+import { activeProjectId } from "@/project/current";
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -13,7 +14,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export async function HeartbeatPanel() {
-  const hb = await heartbeatSeries(getDb());
+  const pid = await activeProjectId();
+  const hb = await heartbeatSeries(getDb(), pid);
   const busiestLabel = hb.busiest
     ? new Date(hb.busiest.t).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })
     : "—";

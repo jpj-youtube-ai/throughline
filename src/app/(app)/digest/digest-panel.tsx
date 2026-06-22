@@ -2,10 +2,12 @@ import { getDb } from "@/db/client";
 import { recentDigests } from "@/digest/queries";
 import { Card, Empty, buttonClass } from "@/components/ui";
 import { generate } from "./actions";
+import { activeProjectId } from "@/project/current";
 
 export async function DigestPanel() {
+  const pid = await activeProjectId();
   const db = getDb();
-  const digests = await recentDigests(db, undefined, 10);
+  const digests = await recentDigests(db, pid, 10);
   const [latest, ...older] = digests;
 
   return (

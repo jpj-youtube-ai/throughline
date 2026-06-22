@@ -114,6 +114,35 @@ test("parses the real SPEC.md genesis spec (REQ-001..REQ-027)", () => {
   }
 });
 
+test("genesis guard is per-project: importing into a project with reqs is refused, but a fresh second project can still import", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    // Project A: import succeeds, then second import is refused.
+    const projectAId = await seedProject(db);
+    await importGenesisSpec(db, FIXTURE, "SPEC.md", projectAId);
+    await assert.rejects(importGenesisSpec(db, FIXTURE, "SPEC.md", projectAId), /refused/i);
+
+    // Project B: fresh project — import must succeed even though project A has requirements.
+    const [pb] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/repo-b", defaultBranch: "main", installationId: 2, localClonePath: "/y", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    const projectBId = pb.id;
+    const resB = await importGenesisSpec(db, FIXTURE, "SPEC.md", projectBId);
+    assert.equal(resB.count, 3);
+
+    // Each project has its own 3 requirements (6 total), no cross-contamination.
+    const { eq } = await import("drizzle-orm");
+    const { requirements: reqs } = await import("../db/schema");
+    const aReqs = await db.select().from(reqs).where(eq(reqs.projectId, projectAId));
+    const bReqs = await db.select().from(reqs).where(eq(reqs.projectId, projectBId));
+    assert.equal(aReqs.length, 3);
+    assert.equal(bReqs.length, 3);
+  } finally {
+    await close();
+  }
+});
+
 test("importGenesisSpec sets requirements.projectId and emits project-scoped events when projectId provided", async () => {
   const { db, close } = await createTestDb();
   try {
