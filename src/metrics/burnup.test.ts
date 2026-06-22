@@ -56,3 +56,39 @@ test("burnUpSeries accumulates scope (tasks) and done (first merge per task)", a
     await close();
   }
 });
+
+test("burnUpSeries scopes to a single project when projectId is given", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p1] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r1", installationId: 1, defaultBranch: "main", localClonePath: "/t1" })
+      .returning({ id: project.id });
+    const [p2] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r2", installationId: 2, defaultBranch: "main", localClonePath: "/t2" })
+      .returning({ id: project.id });
+
+    const [r1] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "R1", description: "d", provenance: "imported", projectId: p1.id })
+      .returning({ id: requirements.id });
+    const [r2] = await db
+      .insert(requirements)
+      .values({ key: "REQ-002", title: "R2", description: "d", provenance: "imported", projectId: p2.id })
+      .returning({ id: requirements.id });
+
+    // p1 has 2 tasks, p2 has 1 task
+    await db.insert(tasks).values({ key: "TASK-010", title: "a", body: "b", requirementId: r1.id, effort: 1, risk: "low", confidence: 50, createdAt: new Date(100), projectId: p1.id });
+    await db.insert(tasks).values({ key: "TASK-011", title: "b", body: "b", requirementId: r1.id, effort: 1, risk: "low", confidence: 50, createdAt: new Date(200), projectId: p1.id });
+    await db.insert(tasks).values({ key: "TASK-012", title: "c", body: "b", requirementId: r2.id, effort: 1, risk: "low", confidence: 50, createdAt: new Date(300), projectId: p2.id });
+
+    const b1 = await burnUpSeries(db, p1.id);
+    assert.equal(b1.scope, 2);
+
+    const b2 = await burnUpSeries(db, p2.id);
+    assert.equal(b2.scope, 1);
+  } finally {
+    await close();
+  }
+});

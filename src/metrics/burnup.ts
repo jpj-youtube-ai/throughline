@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks, events } from "../db/schema";
 
@@ -21,12 +21,20 @@ export interface BurnUp {
  * time-ordered. Requirements have no shipped-transition yet, so tasks are the
  * honest unit of progress.
  */
-export async function burnUpSeries(db: Db): Promise<BurnUp> {
-  const taskRows = await db.select({ at: tasks.createdAt }).from(tasks).orderBy(asc(tasks.createdAt));
+export async function burnUpSeries(db: Db, projectId?: string): Promise<BurnUp> {
+  const taskRows = await db
+    .select({ at: tasks.createdAt })
+    .from(tasks)
+    .where(projectId ? eq(tasks.projectId, projectId) : undefined)
+    .orderBy(asc(tasks.createdAt));
   const closeRows = await db
     .select({ at: events.createdAt, subjectId: events.subjectId, payload: events.payload })
     .from(events)
-    .where(eq(events.type, "task.github_status_changed"))
+    .where(
+      projectId
+        ? and(eq(events.type, "task.github_status_changed"), eq(events.projectId, projectId))
+        : eq(events.type, "task.github_status_changed"),
+    )
     .orderBy(asc(events.seq));
 
   // first time each task reached "closed"

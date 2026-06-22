@@ -5,7 +5,7 @@ import { generate } from "./actions";
 
 export async function DigestPanel() {
   const db = getDb();
-  const digests = await recentDigests(db, 10);
+  const digests = await recentDigests(db, undefined, 10);
   const [latest, ...older] = digests;
 
   return (

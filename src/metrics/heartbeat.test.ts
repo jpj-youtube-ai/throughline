@@ -25,7 +25,7 @@ test("heartbeatSeries buckets events by UTC day into a continuous window", async
       { type: "project.bound", subjectType: "project", payload: {}, createdAt: new Date(today - 120 * DAY), projectId: proj.id },
     ]);
 
-    const hb = await heartbeatSeries(db, now, 90);
+    const hb = await heartbeatSeries(db, undefined, now, 90);
     assert.equal(hb.days.length, 90);
     assert.equal(hb.total, 3); // the 120-days-ago event is outside the window
     assert.equal(hb.activeDays, 2);
@@ -46,11 +46,41 @@ test("heartbeatSeries buckets events by UTC day into a continuous window", async
 test("heartbeatSeries returns an all-zero window with no busiest when empty", async () => {
   const { db, close } = await createTestDb();
   try {
-    const hb = await heartbeatSeries(db, Date.UTC(2026, 5, 20), 30);
+    const hb = await heartbeatSeries(db, undefined, Date.UTC(2026, 5, 20), 30);
     assert.equal(hb.days.length, 30);
     assert.equal(hb.total, 0);
     assert.equal(hb.activeDays, 0);
     assert.equal(hb.busiest, null);
+  } finally {
+    await close();
+  }
+});
+
+test("heartbeatSeries scopes to a single project when projectId is given", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p1] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r1", installationId: 1, defaultBranch: "main", localClonePath: "/t1" })
+      .returning({ id: project.id });
+    const [p2] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r2", installationId: 2, defaultBranch: "main", localClonePath: "/t2" })
+      .returning({ id: project.id });
+
+    const now = Date.UTC(2026, 5, 20, 12, 0, 0);
+    const today = Date.UTC(2026, 5, 20);
+    await db.insert(events).values([
+      { type: "idea.submitted", subjectType: "idea", payload: {}, createdAt: new Date(today + 1_000), projectId: p1.id },
+      { type: "idea.submitted", subjectType: "idea", payload: {}, createdAt: new Date(today + 2_000), projectId: p1.id },
+      { type: "idea.submitted", subjectType: "idea", payload: {}, createdAt: new Date(today + 3_000), projectId: p2.id },
+    ]);
+
+    const hb1 = await heartbeatSeries(db, p1.id, now, 7);
+    assert.equal(hb1.total, 2);
+
+    const hb2 = await heartbeatSeries(db, p2.id, now, 7);
+    assert.equal(hb2.total, 1);
   } finally {
     await close();
   }

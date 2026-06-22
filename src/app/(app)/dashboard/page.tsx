@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { auth } from "@/auth";
 import { getDb } from "@/db/client";
+import { activeProjectId } from "@/project/current";
 import { listActivity } from "@/events/feed";
 import { heartbeatSeries } from "@/metrics/heartbeat";
 import { getLatestNarrative } from "@/narrative/queries";
@@ -51,19 +52,20 @@ export default async function DashboardPage() {
   const db = getDb();
   const session = await auth();
   const userId = session?.user?.id ?? "";
+  const pid = await activeProjectId();
   const [
     activity, heartbeat, narrative, digest, ideas, votedIds, tasks, quickWins, pipeline, burnup, drift, reconcile, rationales,
   ] = await Promise.all([
-    listActivity(db, undefined, 120),
-    heartbeatSeries(db, Date.now(), 14),
-    getLatestNarrative(db),
-    digestSummary(db),
+    listActivity(db, pid, 120),
+    heartbeatSeries(db, pid, Date.now(), 14),
+    getLatestNarrative(db, pid),
+    digestSummary(db, pid),
     listVotingIdeas(db),
     userId ? idsUserVotedFor(db, userId) : Promise.resolve<string[]>([]),
-    listTasks(db),
-    listQuickWins(db),
-    listPipeline(db),
-    burnUpSeries(db),
+    listTasks(db, pid),
+    listQuickWins(db, pid),
+    listPipeline(db, pid),
+    burnUpSeries(db, pid),
     listOpenDriftFlags(db),
     structuralReconciliationForProject(db),
     countRationales(db),

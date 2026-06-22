@@ -1,4 +1,4 @@
-import { gte } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { events } from "../db/schema";
 
@@ -27,12 +27,16 @@ function utcDayStart(ms: number): number {
  * window, as a continuous series (empty days included, so gaps in the rhythm
  * show). Bucketed by UTC day for determinism. Read-only over the log.
  */
-export async function heartbeatSeries(db: Db, now: number = Date.now(), windowDays = 90): Promise<Heartbeat> {
+export async function heartbeatSeries(db: Db, projectId?: string, now: number = Date.now(), windowDays = 90): Promise<Heartbeat> {
   const start = utcDayStart(now) - (windowDays - 1) * DAY;
   const rows = await db
     .select({ at: events.createdAt })
     .from(events)
-    .where(gte(events.createdAt, new Date(start)));
+    .where(
+      projectId
+        ? and(gte(events.createdAt, new Date(start)), eq(events.projectId, projectId))
+        : gte(events.createdAt, new Date(start)),
+    );
 
   const counts = new Map<number, number>();
   for (const r of rows) {
