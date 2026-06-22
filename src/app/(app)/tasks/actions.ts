@@ -8,6 +8,12 @@ import { tasks } from "@/db/schema";
 import { claimTask, unclaimTask } from "@/tasks/claim";
 import { createBranchesForClaimedTasks } from "@/github/branches";
 
+// Helper: read a task's projectId (used to scope the branch sweep to the right project).
+async function getTaskProjectId(db: ReturnType<typeof getDb>, taskId: string): Promise<string | undefined> {
+  const [t] = await db.select({ projectId: tasks.projectId }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  return t?.projectId;
+}
+
 export type ClaimState =
   | { ok: true; branchCreated: boolean }
   | { ok: false; error: string }
@@ -29,8 +35,10 @@ export async function claim(_prev: ClaimState, formData: FormData): Promise<Clai
   }
 
   // External, best-effort (after the claim tx); the worker sweep retries failures.
+  // Pass the task's projectId so the branch sweep is scoped to the right project.
+  const taskProjectId = await getTaskProjectId(db, taskId);
   try {
-    await createBranchesForClaimedTasks(db);
+    await createBranchesForClaimedTasks(db, taskProjectId);
   } catch {
     // claim holds regardless; leave branch_created_at null for the next sweep.
   }

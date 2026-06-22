@@ -9,6 +9,7 @@ import { createTestDb } from "../db/client";
 import { requirements, tasks, project } from "../db/schema";
 import { generateForRequirement } from "./orchestrate";
 import type { GenerateTasksResult } from "./run";
+import type { generateTasks as GenerateTasksFn } from "./run";
 
 const fakeGenerate = async (): Promise<GenerateTasksResult> => ({
   ok: true,
@@ -74,5 +75,63 @@ test("generateForRequirement happy path with an injected generator persists task
   } finally {
     await close();
     fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("generateForRequirement loads the subject requirement's project (not another project)", async () => {
+  const { db, close } = await createTestDb();
+  const dirA = fs.mkdtempSync(path.join(os.tmpdir(), "proj-a-"));
+  const dirB = fs.mkdtempSync(path.join(os.tmpdir(), "proj-b-"));
+  fs.writeFileSync(path.join(dirA, "SPEC.md"), "# Spec A\n");
+  fs.writeFileSync(path.join(dirA, "CLAUDE.md"), "# Conventions A\n");
+  fs.writeFileSync(path.join(dirB, "SPEC.md"), "# Spec B\n");
+  fs.writeFileSync(path.join(dirB, "CLAUDE.md"), "# Conventions B\n");
+  try {
+    // Two projects with distinct clone paths
+    const [pA] = await db.insert(project).values({
+      repoFullName: "acme/alpha", installationId: 10, defaultBranch: "main",
+      localClonePath: dirA, specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+    }).returning({ id: project.id });
+    const [pB] = await db.insert(project).values({
+      repoFullName: "acme/beta", installationId: 20, defaultBranch: "main",
+      localClonePath: dirB, specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+    }).returning({ id: project.id });
+
+    // Requirement belongs to project B
+    const [reqB] = await db.insert(requirements).values({
+      key: "REQ-001", title: "Beta search", description: "Search in beta", provenance: "imported", projectId: pB.id,
+    }).returning({ id: requirements.id });
+
+    // Injected generator captures which repoPath was used in the message
+    let capturedRepoPath: string | undefined;
+    const trackingGenerate: typeof GenerateTasksFn = async (opts) => {
+      // The userMessage embeds the clone path via buildSlice / buildUserMessage.
+      // Instead of parsing the message, we monkey-patch via a closure that
+      // captures the localClonePath the orchestrator resolved.
+      // Here we verify by checking which SPEC content reaches the generator.
+      capturedRepoPath = opts.userMessage.includes("Spec B") ? dirB : dirA;
+      return {
+        ok: true,
+        model: "fake",
+        usage: null,
+        output: {
+          new_requirements: [],
+          tasks: [{ title: "Beta task", requirement_key: "REQ-001", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80 }],
+        },
+      };
+    };
+
+    const r = await generateForRequirement(db, reqB.id, { generate: trackingGenerate });
+    assert.equal(r.ok, true, `generation should succeed: ${r.failure}`);
+    assert.equal(capturedRepoPath, dirB, "orchestrator used project B's clone path, not A's");
+
+    // Tasks created belong to project B
+    const rows = await db.select({ projectId: tasks.projectId }).from(tasks).where(eq(tasks.requirementId, reqB.id));
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].projectId, pB.id);
+  } finally {
+    await close();
+    fs.rmSync(dirA, { recursive: true, force: true });
+    fs.rmSync(dirB, { recursive: true, force: true });
   }
 });

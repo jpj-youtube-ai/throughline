@@ -46,16 +46,25 @@ test("createBranch rethrows non-422 errors", async () => {
   await assert.rejects(() => createBranch(1, "o/r", "b", "main", client), /boom/);
 });
 
-async function seed(db: Awaited<ReturnType<typeof createTestDb>>["db"]) {
+async function seedProject(
+  db: Awaited<ReturnType<typeof createTestDb>>["db"],
+  repoFullName: string,
+  installationId: number,
+  reqKey: string,
+) {
   const [proj] = await db.insert(project).values({
-    repoFullName: "o/r", installationId: 1, defaultBranch: "main",
+    repoFullName, installationId, defaultBranch: "main",
     localClonePath: "/tmp", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
   }).returning({ id: project.id });
   const [req] = await db
     .insert(requirements)
-    .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: proj.id })
+    .values({ key: reqKey, title: "t", description: "d", provenance: "imported", projectId: proj.id })
     .returning({ id: requirements.id });
   return { reqId: req.id, projId: proj.id };
+}
+
+async function seed(db: Awaited<ReturnType<typeof createTestDb>>["db"]) {
+  return seedProject(db, "o/r", 1, "REQ-001");
 }
 
 test("createBranchesForClaimedTasks branches claimed+unbranched tasks, sets the timestamp, skips the rest", async () => {
@@ -68,7 +77,7 @@ test("createBranchesForClaimedTasks branches claimed+unbranched tasks, sets the 
 
     const calls: string[] = [];
     const fake: CreateBranchFn = async (_i, _r, branch) => { calls.push(branch); return { created: true }; };
-    const { created } = await createBranchesForClaimedTasks(db, fake);
+    const { created } = await createBranchesForClaimedTasks(db, projId, fake);
 
     assert.deepEqual(created, ["TASK-001"]);
     assert.deepEqual(calls, ["task-001-a"]);
@@ -85,7 +94,7 @@ test("createBranchesForClaimedTasks leaves branchCreatedAt null when creation th
     const { reqId, projId } = await seed(db);
     await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-a", projectId: projId });
     const failing: CreateBranchFn = async () => { throw new Error("github down"); };
-    await assert.rejects(() => createBranchesForClaimedTasks(db, failing), /github down/);
+    await assert.rejects(() => createBranchesForClaimedTasks(db, projId, failing), /github down/);
     const [t1] = await db.select({ b: tasks.branchCreatedAt }).from(tasks).where(eq(tasks.key, "TASK-001"));
     assert.equal(t1.b, null);
   } finally {
@@ -96,7 +105,7 @@ test("createBranchesForClaimedTasks leaves branchCreatedAt null when creation th
 test("createBranchesForClaimedTasks throws when no project is bound", async () => {
   const { db, close } = await createTestDb();
   try {
-    await assert.rejects(() => createBranchesForClaimedTasks(db, okClient as unknown as CreateBranchFn), /No project bound/);
+    await assert.rejects(() => createBranchesForClaimedTasks(db, undefined, okClient as unknown as CreateBranchFn), /No project bound/);
   } finally {
     await close();
   }
@@ -115,7 +124,7 @@ test("createBranchesForClaimedTasks posts a kickoff comment for a task with an i
       comments.push({ issueNumber, body });
     };
 
-    const { created } = await createBranchesForClaimedTasks(db, branchFake, commentFake);
+    const { created } = await createBranchesForClaimedTasks(db, projId, branchFake, commentFake);
     assert.deepEqual(created.sort(), ["TASK-010", "TASK-011"]);
 
     assert.equal(comments.length, 1); // only TASK-010 has an issue
@@ -125,6 +134,53 @@ test("createBranchesForClaimedTasks posts a kickoff comment for a task with an i
 
     const rows = await db.select({ b: tasks.branchCreatedAt }).from(tasks);
     assert.ok(rows.every((r) => r.b instanceof Date)); // both branches recorded
+  } finally {
+    await close();
+  }
+});
+
+test("createBranchesForClaimedTasks(db, pB) only touches B's tasks — not A's", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { reqId: reqA, projId: pA } = await seedProject(db, "acme/alpha", 10, "REQ-001");
+    const { reqId: reqB, projId: pB } = await seedProject(db, "acme/beta", 20, "REQ-002");
+
+    // Project A: one claimed task
+    await db.insert(tasks).values({ key: "TASK-001", title: "Alpha", body: "b", requirementId: reqA, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-alpha", projectId: pA });
+    // Project B: one claimed task
+    await db.insert(tasks).values({ key: "TASK-001", title: "Beta", body: "b", requirementId: reqB, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-beta", projectId: pB });
+
+    const calls: string[] = [];
+    const fakeBranch: CreateBranchFn = async (_i, repoFullName, branch) => {
+      calls.push(`${repoFullName}:${branch}`);
+      return { created: true };
+    };
+
+    // Process only project B
+    const { created } = await createBranchesForClaimedTasks(db, pB, fakeBranch);
+    assert.deepEqual(created, ["TASK-001"]);
+    assert.ok(calls.every((c) => c.startsWith("acme/beta:")), "only B's repo used");
+
+    // Project A's task still has no branch timestamp
+    const allTasks = await db.select({ projectId: tasks.projectId, branchCreatedAt: tasks.branchCreatedAt }).from(tasks);
+    const aTask = allTasks.find((t) => t.projectId === pA);
+    assert.equal(aTask?.branchCreatedAt, null, "project A task untouched");
+    const bTask = allTasks.find((t) => t.projectId === pB);
+    assert.ok(bTask?.branchCreatedAt instanceof Date, "project B task branched");
+  } finally {
+    await close();
+  }
+});
+
+test("createBranchesForClaimedTasks without projectId defaults to oldest project", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { reqId, projId } = await seed(db);
+    await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-001-a", projectId: projId });
+    const fake: CreateBranchFn = async () => ({ created: true });
+    // No projectId passed — defaults to oldest (the only one)
+    const { created } = await createBranchesForClaimedTasks(db, undefined, fake);
+    assert.deepEqual(created, ["TASK-001"]);
   } finally {
     await close();
   }

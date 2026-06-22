@@ -16,15 +16,16 @@ export async function generateTasksForRequirement(_prev: GenState, formData: For
 
   const key = String(formData.get("key") ?? "");
   const db = getDb();
-  const [req] = await db.select({ id: requirements.id }).from(requirements).where(eq(requirements.key, key)).limit(1);
+  const [req] = await db.select({ id: requirements.id, projectId: requirements.projectId }).from(requirements).where(eq(requirements.key, key)).limit(1);
   if (!req) return { ok: false, error: `Unknown requirement ${key}.` };
 
   const r = await generateForRequirement(db, req.id);
   if (!r.ok) return { ok: false, error: r.failure ?? "Generation failed." };
 
   // Open GitHub issues for the new tasks (idempotent; outside the generation tx).
+  // Pass the requirement's projectId so issues are opened on the right project's repo.
   try {
-    await createIssuesForTasks(db);
+    await createIssuesForTasks(db, req.projectId);
   } catch {
     // tasks are persisted; issue creation can be retried by the worker — don't fail the action.
   }

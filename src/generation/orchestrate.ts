@@ -48,8 +48,8 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
   if (!idea.why) return { ok: false, failure: "idea has no why" };
   const why = idea.why;
 
-  const [proj] = await db.select().from(project).limit(1);
-  if (!proj) return { ok: false, failure: "no project bound (REQ-002)" };
+  const [proj] = await db.select().from(project).where(eq(project.id, idea.projectId)).limit(1);
+  if (!proj) return { ok: false, failure: `project ${idea.projectId} not found (REQ-002)` };
 
   const specPath = path.join(proj.localClonePath, proj.specPath);
   const claudePath = path.join(proj.localClonePath, proj.claudeMdPath);
@@ -123,7 +123,7 @@ export async function generateForRequirement(
   const generate = opts?.generate ?? generateTasks;
 
   const [req] = await db
-    .select({ id: requirements.id, title: requirements.title, description: requirements.description })
+    .select({ id: requirements.id, title: requirements.title, description: requirements.description, projectId: requirements.projectId })
     .from(requirements)
     .where(eq(requirements.id, reqId))
     .limit(1);
@@ -132,8 +132,8 @@ export async function generateForRequirement(
   const existingForReq = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.requirementId, reqId)).limit(1);
   if (existingForReq.length > 0) return { ok: false, failure: "requirement already has tasks" };
 
-  const [proj] = await db.select().from(project).limit(1);
-  if (!proj) return { ok: false, failure: "no project bound (REQ-002)" };
+  const [proj] = await db.select().from(project).where(eq(project.id, req.projectId)).limit(1);
+  if (!proj) return { ok: false, failure: `project ${req.projectId} not found (REQ-002)` };
 
   const specPath = path.join(proj.localClonePath, proj.specPath);
   const claudePath = path.join(proj.localClonePath, proj.claudeMdPath);

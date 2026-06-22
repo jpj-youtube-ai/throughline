@@ -2,6 +2,7 @@ import { and, eq, isNull, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks, project } from "../db/schema";
 import { getInstallationOctokit, commentOnIssue } from "./app";
+import { listProjects } from "../project/list";
 
 // The slice of the octokit git API we use — typed so domain code needs no `any`
 // and tests can supply an honest fake.
@@ -71,19 +72,32 @@ export function kickoffComment(taskKey: string, branchName: string): string {
  * (branch_created_at IS NULL), from the project's default branch. Mirrors
  * createIssuesForTasks: idempotent, runs OUTSIDE any DB transaction (external
  * call). Stores branch_created_at as the "exists" sentinel — never github_status.
+ *
+ * `projectId` is optional: when omitted, resolves the oldest project (so existing
+ * worker callers keep working without changes).
  */
 export async function createBranchesForClaimedTasks(
   db: Db,
+  projectId?: string,
   createBranchFn: CreateBranchFn = createBranch,
   commentOnIssueFn: CommentOnIssueFn = commentOnIssue,
 ): Promise<{ created: string[] }> {
-  const [proj] = await db.select().from(project).limit(1);
-  if (!proj) throw new Error("No project bound (REQ-002).");
+  let resolvedProjectId: string;
+  if (projectId) {
+    resolvedProjectId = projectId;
+  } else {
+    const projects = await listProjects(db);
+    if (projects.length === 0) throw new Error("No project bound (REQ-002).");
+    resolvedProjectId = projects[0].id;
+  }
+
+  const [proj] = await db.select().from(project).where(eq(project.id, resolvedProjectId)).limit(1);
+  if (!proj) throw new Error(`Project ${resolvedProjectId} not found (REQ-002).`);
 
   const pending = await db
     .select({ id: tasks.id, key: tasks.key, branchName: tasks.branchName, githubIssueNumber: tasks.githubIssueNumber })
     .from(tasks)
-    .where(and(eq(tasks.claimState, "claimed"), isNull(tasks.branchCreatedAt), isNotNull(tasks.branchName)));
+    .where(and(eq(tasks.claimState, "claimed"), isNull(tasks.branchCreatedAt), isNotNull(tasks.branchName), eq(tasks.projectId, resolvedProjectId)));
 
   const created: string[] = [];
   for (const t of pending) {
