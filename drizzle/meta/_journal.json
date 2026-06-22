@@ -29,6 +29,13 @@
       "when": 1782061197472,
       "tag": "0003_bitter_swarm",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1782112580651,
+      "tag": "0004_closed_clint_barton",
+      "breakpoints": true
     }
   ]
 }

@@ -28,6 +28,7 @@ export const users = pgTable("users", {
   githubLogin: text("github_login").notNull(),
   name: text("name"),
   avatarUrl: text("avatar_url"),
+  activeProjectId: uuid("active_project_id").references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -52,6 +53,7 @@ export const requirements = pgTable("requirements", {
   status: requirementStatus("status").notNull().default("planned"),
   provenance: provenance("provenance").notNull(),
   originIdeaId: uuid("origin_idea_id").references(() => ideas.id),
+  projectId: uuid("project_id").references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -64,6 +66,7 @@ export const ideas = pgTable("ideas", {
   viability: integer("viability"), // 1-10
   authorId: uuid("author_id").notNull().references(() => users.id),
   state: ideaState("state").notNull(),
+  projectId: uuid("project_id").references(() => project.id),
   lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -95,9 +98,10 @@ export const tasks = pgTable("tasks", {
   branchName: text("branch_name"),
   githubIssueNumber: integer("github_issue_number"),
   githubIssueUrl: text("github_issue_url"),
-  // Mirrored from GitHub only — written exclusively by the webhook handler.
+  // Mirrored from GitHub only -- written exclusively by the webhook handler.
   githubStatus: githubStatus("github_status").notNull().default("open"),
   branchCreatedAt: timestamp("branch_created_at", { withTimezone: true }),
+  projectId: uuid("project_id").references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -114,7 +118,7 @@ export const driftFlags = pgTable("drift_flags", {
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
 });
 
-// The log. Append-only — source of truth for intent and causal history.
+// The log. Append-only -- source of truth for intent and causal history.
 // No code path updates or deletes this table (enforced by DB trigger too).
 export const events = pgTable("events", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -124,8 +128,9 @@ export const events = pgTable("events", {
   subjectId: uuid("subject_id"),
   payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
   rationale: text("rationale"),
+  projectId: uuid("project_id").references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  // Monotonic total order — created_at alone ties within a transaction (shared
+  // Monotonic total order -- created_at alone ties within a transaction (shared
   // now()), so the activity feed and narrative order by seq (REQ-019).
   seq: bigserial("seq", { mode: "number" }).notNull(),
 });
@@ -135,4 +140,5 @@ export const narratives = pgTable("narratives", {
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   eventCount: integer("event_count").notNull(),
   content: jsonb("content").$type<unknown>().notNull(),
+  projectId: uuid("project_id").references(() => project.id),
 });
