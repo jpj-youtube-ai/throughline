@@ -39,7 +39,7 @@ export async function QuickWinsPanel() {
                       </Pill>
                     )}
                   </div>
-                  <div className="truncate text-ink">{w.title}</div>
+                  <div className="break-words text-ink">{w.title}</div>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <a href={`/spec#${w.requirementKey}`}>
                       <Pill tone="neutral" dot={false}>
