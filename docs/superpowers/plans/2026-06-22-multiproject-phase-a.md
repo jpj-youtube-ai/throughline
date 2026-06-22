@@ -40,19 +40,13 @@
 
 ---
 
-## Task 0: Declare the multi-project requirement
+## Task 0: Requirement number (no DB action)
 
-**Files:** none (operator step via the board/CLI).
+Multi-project is **Throughline's own** requirement — **REQ-029** (Throughline's spec uses REQ-001..027; REQ-028 = the overview dashboard).
 
-- [ ] **Step 1:** Declare the new requirement so the work maps to a real REQ (don't fold drift silently). Run the declare CLI (adjust title/why), which emits `requirement.declared` + materializes:
+**Do NOT run the declare CLI against the live DB.** The bound board currently holds the *orbit* repo's requirements (genesis-imported), so declaring "multi-project support" there would wrongly add it to orbit's board. Throughline's own requirements live in `throughline/SPEC.md`; recording REQ-029 there is a separate concern from this code work.
 
-```bash
-npx tsx src/cli/declare-req.ts --title "Multi-project support" --provenance drift --why "Teams need to manage and alternate between multiple bound repos, each with its own ideas/requirements/tasks/events."
-```
-
-- [ ] **Step 2:** Note the minted `REQ-NNN` and use it in this phase's commit trailers (replace `REQ-0xx` below). If the CLI flags differ, read `src/cli/*declare*` first.
-
-> If the team prefers to assign the REQ manually, record the number here before proceeding.
+- [ ] Use **REQ-029** in every commit trailer below (replaces `REQ-0xx`).
 
 ---
 
