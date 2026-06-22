@@ -2,16 +2,31 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { requirements, tasks, events } from "../db/schema";
+import { requirements, tasks, events, project } from "../db/schema";
 import { reconcileRequirementStatus } from "./lifecycle";
 import { handleWebhook } from "../github/webhook";
 
-async function seedReq(db: Db, status: "planned" | "building" | "shipped" = "planned") {
+async function seedReq(db: Db, status: "planned" | "building" | "shipped" = "planned", projectId?: string | null) {
   const [r] = await db
     .insert(requirements)
-    .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status })
+    .values({ key: "REQ-003", title: "Event log", description: "d", provenance: "imported", status, projectId: projectId ?? null })
     .returning({ id: requirements.id });
   return r.id;
+}
+
+async function seedProject(db: Db): Promise<string> {
+  const [p] = await db
+    .insert(project)
+    .values({
+      repoFullName: "acme/throughline",
+      defaultBranch: "main",
+      installationId: 42,
+      localClonePath: "/tmp/repo",
+      specPath: "SPEC.md",
+      claudeMdPath: "CLAUDE.md",
+    })
+    .returning({ id: project.id });
+  return p.id;
 }
 
 async function addTask(db: Db, reqId: string, key: string, github: "open" | "closed" = "open") {
@@ -65,6 +80,25 @@ test("reconcileRequirementStatus: ships only when every task is merged; idempote
     const evs = await statusChanges(db);
     assert.equal(evs.length, 1);
     assert.deepEqual(evs[0].payload, { from: "building", to: "shipped" });
+  } finally {
+    await close();
+  }
+});
+
+test("reconcileRequirementStatus carries projectId from the requirement onto the event", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projectId = await seedProject(db);
+    const reqId = await seedReq(db, "planned", projectId);
+    await db
+      .insert(tasks)
+      .values({ key: "TASK-010", title: "t", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, githubStatus: "open" });
+
+    await db.transaction((tx) => reconcileRequirementStatus(tx, reqId));
+
+    const evs = await db.select().from(events).where(eq(events.type, "requirement.status_changed"));
+    assert.equal(evs.length, 1);
+    assert.equal(evs[0].projectId, projectId, "requirement.status_changed event should carry projectId");
   } finally {
     await close();
   }

@@ -2,8 +2,23 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
-import { requirements, events } from "../db/schema";
+import { requirements, events, project } from "../db/schema";
 import { amendRequirement } from "./amend";
+
+async function seedProject(db: Awaited<ReturnType<typeof createTestDb>>["db"]): Promise<string> {
+  const [p] = await db
+    .insert(project)
+    .values({
+      repoFullName: "acme/throughline",
+      defaultBranch: "main",
+      installationId: 42,
+      localClonePath: "/tmp/repo",
+      specPath: "SPEC.md",
+      claudeMdPath: "CLAUDE.md",
+    })
+    .returning({ id: project.id });
+  return p.id;
+}
 
 test("amendRequirement updates the description and records requirement.amended with the why", async () => {
   const { db, close } = await createTestDb();
@@ -28,6 +43,27 @@ test("amendRequirement updates the description and records requirement.amended w
     assert.equal(evs.length, 1);
     assert.equal(evs[0].subjectId, r.id);
     assert.match(evs[0].rationale ?? "", /never existed/);
+  } finally {
+    await close();
+  }
+});
+
+test("amendRequirement carries projectId from the requirement onto the event", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projectId = await seedProject(db);
+    await db.insert(requirements).values({
+      key: "REQ-010",
+      title: "Old title",
+      description: "old desc",
+      provenance: "imported",
+      projectId,
+    });
+
+    await amendRequirement(db, { key: "REQ-010", description: "new desc", why: "better approach" });
+
+    const [ev] = await db.select().from(events).where(eq(events.type, "requirement.amended"));
+    assert.equal(ev.projectId, projectId, "requirement.amended event should carry projectId");
   } finally {
     await close();
   }

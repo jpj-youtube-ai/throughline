@@ -31,7 +31,7 @@ export interface PromoteResult {
 export async function promoteIdea(db: Db, ideaId: string, userId: string): Promise<PromoteResult> {
   return db.transaction(async (tx) => {
     const [idea] = await tx
-      .select({ state: ideas.state, authorId: ideas.authorId })
+      .select({ state: ideas.state, authorId: ideas.authorId, projectId: ideas.projectId })
       .from(ideas)
       .where(eq(ideas.id, ideaId))
       .for("update")
@@ -50,6 +50,7 @@ export async function promoteIdea(db: Db, ideaId: string, userId: string): Promi
       subjectId: ideaId,
       actorId: userId,
       payload: { from: "scratch", to: "voting" },
+      projectId: idea.projectId ?? undefined,
     });
     return { promoted: true };
   });

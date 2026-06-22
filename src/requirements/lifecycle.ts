@@ -22,7 +22,7 @@ export async function reconcileRequirementStatus(
   actorId: string | null = null,
 ): Promise<RequirementStatus | null> {
   const [req] = await tx
-    .select({ status: requirements.status })
+    .select({ status: requirements.status, projectId: requirements.projectId })
     .from(requirements)
     .where(eq(requirements.id, requirementId))
     .for("update")
@@ -45,6 +45,7 @@ export async function reconcileRequirementStatus(
     subjectId: requirementId,
     actorId,
     payload: { from: req.status, to: desired },
+    projectId: req.projectId ?? undefined,
   });
   return desired;
 }

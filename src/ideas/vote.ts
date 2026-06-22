@@ -21,7 +21,7 @@ export async function castVote(db: Db, ideaId: string, userId: string): Promise<
   return db.transaction(async (tx) => {
     // Lock the idea row so concurrent votes can't both trip the gate.
     const [idea] = await tx
-      .select({ state: ideas.state })
+      .select({ state: ideas.state, projectId: ideas.projectId })
       .from(ideas)
       .where(eq(ideas.id, ideaId))
       .for("update")
@@ -44,12 +44,14 @@ export async function castVote(db: Db, ideaId: string, userId: string): Promise<
       return { voted: false, voteCount, approvedNow: false, state: idea.state };
     }
 
+    const projectId = idea.projectId ?? undefined;
     await emitEvent(tx, {
       type: "idea.voted",
       subjectType: "idea",
       subjectId: ideaId,
       actorId: userId,
       payload: { voter: userId },
+      projectId,
     });
 
     let approvedNow = false;
@@ -61,6 +63,7 @@ export async function castVote(db: Db, ideaId: string, userId: string): Promise<
         subjectType: "idea",
         subjectId: ideaId,
         payload: { count: voteCount },
+        projectId,
       });
       await emitEvent(tx, {
         type: "idea.approved",
@@ -68,6 +71,7 @@ export async function castVote(db: Db, ideaId: string, userId: string): Promise<
         subjectId: ideaId,
         // Gate-driven approval — a system decision, with the gate as the recorded why.
         rationale: `Reached the ${APPROVAL_GATE}-approval gate.`,
+        projectId,
       });
       approvedNow = true;
       state = "approved";

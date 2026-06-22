@@ -21,7 +21,7 @@ export interface AmendRequirementInput {
 export async function amendRequirement(db: Db, input: AmendRequirementInput): Promise<{ id: string; key: string }> {
   return db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ id: requirements.id, title: requirements.title, description: requirements.description })
+      .select({ id: requirements.id, title: requirements.title, description: requirements.description, projectId: requirements.projectId })
       .from(requirements)
       .where(eq(requirements.key, input.key))
       .for("update")
@@ -45,6 +45,7 @@ export async function amendRequirement(db: Db, input: AmendRequirementInput): Pr
         to: { title: nextTitle, description: input.description },
       },
       rationale: input.why,
+      projectId: row.projectId ?? undefined,
     });
     return { id: row.id, key: input.key };
   });

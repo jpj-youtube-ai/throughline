@@ -1,6 +1,7 @@
 import type { Db } from "../db/client";
 import { ideas } from "../db/schema";
 import { emitEvent } from "../db/events";
+import { getActiveProjectId } from "../project/active";
 
 export interface SubmitIdeaInput {
   title: string;
@@ -38,6 +39,7 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
   inRange("feasibility", input.feasibility);
   inRange("viability", input.viability);
   const state = input.state ?? "voting";
+  const projectId = await getActiveProjectId(db, input.authorId);
 
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -49,6 +51,7 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
         viability: input.viability ?? null,
         authorId: input.authorId,
         state,
+        projectId,
       })
       .returning({ id: ideas.id, title: ideas.title });
 
@@ -63,6 +66,7 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
         scores: { feasibility: input.feasibility ?? null, viability: input.viability ?? null },
       },
       rationale: why,
+      projectId,
     });
 
     return row;

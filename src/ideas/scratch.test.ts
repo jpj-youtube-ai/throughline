@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { users, ideas, events } from "../db/schema";
+import { users, ideas, events, project } from "../db/schema";
 import { submitIdea } from "./submit";
 import { listScratchIdeas, promoteIdea } from "./scratch";
 
@@ -11,9 +11,25 @@ async function seedUser(db: Db, login: string, githubId: number) {
   return u.id;
 }
 
+async function seedProject(db: Db): Promise<string> {
+  const [p] = await db
+    .insert(project)
+    .values({
+      repoFullName: "acme/throughline",
+      defaultBranch: "main",
+      installationId: 42,
+      localClonePath: "/tmp/repo",
+      specPath: "SPEC.md",
+      claudeMdPath: "CLAUDE.md",
+    })
+    .returning({ id: project.id });
+  return p.id;
+}
+
 test("submitIdea can create a scratch idea (no voting until promoted)", async () => {
   const { db, close } = await createTestDb();
   try {
+    await seedProject(db);
     const author = await seedUser(db, "alice", 1);
     const idea = await submitIdea(db, { title: "Rough thought", why: "might be worth it", authorId: author, state: "scratch" });
 
@@ -28,6 +44,7 @@ test("submitIdea can create a scratch idea (no voting until promoted)", async ()
 test("scratch is author-scoped; promoteIdea opens it for voting and emits idea.graduated", async () => {
   const { db, close } = await createTestDb();
   try {
+    await seedProject(db);
     const alice = await seedUser(db, "alice", 1);
     const bob = await seedUser(db, "bob", 2);
     const idea = await submitIdea(db, { title: "Mine", why: "w", authorId: alice, state: "scratch" });
@@ -50,6 +67,26 @@ test("scratch is author-scoped; promoteIdea opens it for voting and emits idea.g
 
     // promoting again is a no-op (already voting)
     assert.equal((await promoteIdea(db, idea.id, alice)).promoted, false);
+  } finally {
+    await close();
+  }
+});
+
+test("promoteIdea carries projectId on the idea.graduated event", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projectId = await seedProject(db);
+    const alice = await seedUser(db, "alice", 10);
+    const idea = await submitIdea(db, { title: "Draft", why: "testing", authorId: alice, state: "scratch" });
+
+    // Verify the idea itself got projectId from submitIdea.
+    const [ideaRow] = await db.select().from(ideas).where(eq(ideas.id, idea.id));
+    assert.equal(ideaRow.projectId, projectId, "scratch idea should carry projectId");
+
+    await promoteIdea(db, idea.id, alice);
+
+    const [grad] = await db.select().from(events).where(eq(events.type, "idea.graduated"));
+    assert.equal(grad.projectId, projectId, "idea.graduated event should carry projectId");
   } finally {
     await close();
   }

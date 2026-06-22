@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createTestDb, type Db } from "../db/client";
-import { users, ideas, events } from "../db/schema";
+import { users, ideas, events, project } from "../db/schema";
 import { submitIdea } from "./submit";
 
 async function makeUser(db: Db): Promise<string> {
@@ -12,9 +12,25 @@ async function makeUser(db: Db): Promise<string> {
   return u.id;
 }
 
+async function seedProject(db: Db): Promise<string> {
+  const [p] = await db
+    .insert(project)
+    .values({
+      repoFullName: "acme/throughline",
+      defaultBranch: "main",
+      installationId: 42,
+      localClonePath: "/tmp/repo",
+      specPath: "SPEC.md",
+      claudeMdPath: "CLAUDE.md",
+    })
+    .returning({ id: project.id });
+  return p.id;
+}
+
 test("submitIdea creates a voting idea and emits idea.submitted with the why as rationale", async () => {
   const { db, close } = await createTestDb();
   try {
+    await seedProject(db);
     const authorId = await makeUser(db);
     const idea = await submitIdea(db, {
       title: "Event log foundation",
@@ -43,6 +59,7 @@ test("submitIdea creates a voting idea and emits idea.submitted with the why as 
 test("submitIdea rejects an empty why and persists nothing", async () => {
   const { db, close } = await createTestDb();
   try {
+    await seedProject(db);
     const authorId = await makeUser(db);
     await assert.rejects(submitIdea(db, { title: "X", why: "   ", authorId }), /why/i);
     assert.equal((await db.select().from(ideas)).length, 0);
@@ -52,9 +69,32 @@ test("submitIdea rejects an empty why and persists nothing", async () => {
   }
 });
 
+test("submitIdea sets projectId on the idea row and the event", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projectId = await seedProject(db);
+    const authorId = await makeUser(db);
+    const idea = await submitIdea(db, {
+      title: "Scoped idea",
+      why: "to verify project threading",
+      authorId,
+    });
+
+    const [row] = await db.select().from(ideas);
+    assert.equal(row.projectId, projectId, "idea.project_id should match the seeded project");
+
+    const [ev] = await db.select().from(events);
+    assert.equal(ev.projectId, projectId, "event.project_id should match the seeded project");
+    assert.equal(ev.subjectId, idea.id);
+  } finally {
+    await close();
+  }
+});
+
 test("submitIdea rejects an empty title and an out-of-range score", async () => {
   const { db, close } = await createTestDb();
   try {
+    await seedProject(db);
     const authorId = await makeUser(db);
     await assert.rejects(submitIdea(db, { title: "   ", why: "real why", authorId }), /title/i);
     await assert.rejects(
