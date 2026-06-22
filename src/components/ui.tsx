@@ -23,9 +23,29 @@ export function Pill({ tone = "neutral", children, dot = true }: { tone?: Tone; 
   );
 }
 
-export function Card({ children, className = "", id }: { children: ReactNode; className?: string; id?: string }) {
+// A surface panel. The optional `accent` tints it in the spec map's status
+// language so a card's lifecycle reads at a glance: `active` = in-progress
+// (amber), `shipped` = merged/done (teal). Color stays reinforcing — callers
+// also label the state in text — never the sole signal.
+export function Card({
+  children,
+  className = "",
+  id,
+  accent,
+}: {
+  children: ReactNode;
+  className?: string;
+  id?: string;
+  accent?: "active" | "shipped";
+}) {
+  const surface =
+    accent === "shipped"
+      ? "border-shipped/40 bg-shipped-wash"
+      : accent === "active"
+        ? "border-planned/40 bg-planned-wash"
+        : "border-hairline bg-paper-raised";
   return (
-    <div id={id} className={`rounded-leaf border border-hairline bg-paper-raised ${className}`}>
+    <div id={id} className={`rounded-leaf border ${surface} ${className}`}>
       {children}
     </div>
   );

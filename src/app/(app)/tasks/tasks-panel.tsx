@@ -19,7 +19,12 @@ export async function TasksPanel() {
         <ul className="grid gap-3">
           {tasks.map((t) => (
             <li key={t.id}>
-              <Card className="p-4">
+              <Card
+                className="p-4"
+                accent={
+                  t.githubStatus === "closed" ? "shipped" : t.claimState === "claimed" ? "active" : undefined
+                }
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <span className="font-mono text-sm text-spine-deep">{t.key}</span>
