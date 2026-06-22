@@ -58,3 +58,36 @@ test("readSpec returns nulls when no project is bound", async () => {
     await close();
   }
 });
+
+test("readSpec(db, projectId) returns only that project's spec", async () => {
+  const { db, close } = await createTestDb();
+  const dir1 = tmpClone();
+  const dir2 = tmpClone();
+  try {
+    fs.writeFileSync(path.join(dir1, "SPEC.md"), "# Project One Spec\n");
+    fs.writeFileSync(path.join(dir2, "SPEC.md"), "# Project Two Spec\n");
+
+    const [p1] = await db
+      .insert(project)
+      .values({ repoFullName: "org/repo1", defaultBranch: "main", installationId: 1, localClonePath: dir1 })
+      .returning({ id: project.id });
+    const [p2] = await db
+      .insert(project)
+      .values({ repoFullName: "org/repo2", defaultBranch: "main", installationId: 2, localClonePath: dir2 })
+      .returning({ id: project.id });
+
+    const r1 = await readSpec(db, p1.id);
+    assert.match(r1.content ?? "", /Project One Spec/);
+
+    const r2 = await readSpec(db, p2.id);
+    assert.match(r2.content ?? "", /Project Two Spec/);
+
+    // Unknown projectId → no project found → nulls
+    const rNone = await readSpec(db, "00000000-0000-0000-0000-000000000000");
+    assert.deepEqual(rNone, { content: null, path: null });
+  } finally {
+    fs.rmSync(dir1, { recursive: true, force: true });
+    fs.rmSync(dir2, { recursive: true, force: true });
+    await close();
+  }
+});

@@ -1,4 +1,4 @@
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { requirements, tasks } from "../db/schema";
 
@@ -19,7 +19,8 @@ export interface SpecMapRequirement {
 
 // The spec map (REQ-017): every requirement with its provenance and the tasks
 // that implement it. Read-only over the board DB; the page groups by status.
-export async function listSpecMap(db: Db): Promise<SpecMapRequirement[]> {
+// When projectId is given, results are filtered to that project only.
+export async function listSpecMap(db: Db, projectId?: string): Promise<SpecMapRequirement[]> {
   const reqRows = await db
     .select({
       id: requirements.id,
@@ -30,6 +31,7 @@ export async function listSpecMap(db: Db): Promise<SpecMapRequirement[]> {
       provenance: requirements.provenance,
     })
     .from(requirements)
+    .where(projectId ? eq(requirements.projectId, projectId) : undefined)
     .orderBy(asc(requirements.key));
 
   const taskRows = await db
@@ -40,6 +42,7 @@ export async function listSpecMap(db: Db): Promise<SpecMapRequirement[]> {
       claimState: tasks.claimState,
     })
     .from(tasks)
+    .where(projectId ? eq(tasks.projectId, projectId) : undefined)
     .orderBy(asc(tasks.key));
 
   const byReq = new Map<string, SpecMapTask[]>();

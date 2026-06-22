@@ -1,5 +1,6 @@
 import { getDb } from "@/db/client";
 import { getRequirementDetail } from "@/spec/detail";
+import { activeProjectId } from "@/project/current";
 import { Pill, Empty, type Tone } from "@/components/ui";
 import { SpecGenerate } from "./spec-generate";
 
@@ -8,7 +9,8 @@ const PROV_LABEL: Record<string, string> = { imported: "genesis", voted: "voted"
 const PROV_TONE: Record<string, Tone> = { imported: "neutral", voted: "spine", drift: "risk" };
 
 export async function RequirementDetail({ reqKey }: { reqKey: string }) {
-  const r = await getRequirementDetail(getDb(), reqKey);
+  const pid = await activeProjectId();
+  const r = await getRequirementDetail(getDb(), pid, reqKey);
   if (!r) return <Empty title="Unknown requirement.">No requirement with key {reqKey}.</Empty>;
 
   return (

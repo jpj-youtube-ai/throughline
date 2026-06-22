@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getDb } from "@/db/client";
 import { listSpecMap } from "@/spec/map";
+import { activeProjectId } from "@/project/current";
 import { PageHeader, Empty, buttonClass } from "@/components/ui";
 import { SpecUpload } from "./spec-upload";
 import { SpecGrid } from "./spec-grid";
@@ -8,7 +9,8 @@ import { SpecGrid } from "./spec-grid";
 export const dynamic = "force-dynamic";
 
 export default async function SpecPage() {
-  const reqs = await listSpecMap(getDb());
+  const pid = await activeProjectId();
+  const reqs = await listSpecMap(getDb(), pid);
   const shipped = reqs.filter((r) => r.status === "shipped").length;
 
   return (

@@ -1,5 +1,6 @@
 import { getDb } from "@/db/client";
 import { readSpec } from "@/spec/read";
+import { activeProjectId } from "@/project/current";
 import { Empty } from "@/components/ui";
 import ReactMarkdown, { type Components } from "react-markdown";
 
@@ -28,7 +29,8 @@ const components: Components = {
 // Renders the bound project's materialized SPEC.md as formatted markdown.
 // Read-only; the empty state covers an unbound project or a pre-materialize repo.
 export async function SpecDocument() {
-  const { content } = await readSpec(getDb());
+  const pid = await activeProjectId();
+  const { content } = await readSpec(getDb(), pid);
   if (!content) {
     return <Empty title="No SPEC.md yet.">It is written when requirements are first materialized.</Empty>;
   }
