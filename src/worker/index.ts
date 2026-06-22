@@ -1,49 +1,103 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { loadDotenv } from "../env";
 import { createDb, type Db } from "../db/client";
 import { ideas } from "../db/schema";
-import { generateForApprovedIdea } from "../generation/orchestrate";
-import { createIssuesForTasks } from "../github/issues";
+import { generateForApprovedIdea, type GenerateForIdeaResult } from "../generation/orchestrate";
+import { createIssuesForTasks, type CreateIssuesResult } from "../github/issues";
 import { createBranchesForClaimedTasks } from "../github/branches";
-import { materializeSpec } from "../spec/materialize";
+import { materializeSpec, type MaterializeResult } from "../spec/materialize";
+import { generateDigest, type GenerateResult } from "../digest/send";
+import { listProjects } from "../project/list";
 
-// One pass: generate tasks for every approved idea. Once an idea generates it
-// moves to `generated`, so it won't be picked up again; a generation failure
-// leaves it `approved` to retry next tick (REQ-008).
-async function tick(db: Db): Promise<void> {
-  const pending = await db.select({ id: ideas.id, title: ideas.title }).from(ideas).where(eq(ideas.state, "approved"));
+// Injectable overrides — used in tests to avoid hitting external services.
+export interface WorkerDeps {
+  generate?: (db: Db, ideaId: string) => Promise<GenerateForIdeaResult>;
+  createIssues?: (db: Db, projectId: string) => Promise<CreateIssuesResult>;
+  createBranches?: (db: Db, projectId: string) => Promise<{ created: string[] }>;
+  specMaterialize?: (db: Db, projectId: string) => Promise<MaterializeResult>;
+  digest?: (db: Db, opts: { projectId: string }) => Promise<GenerateResult>;
+}
+
+/**
+ * Process one project during a tick: generate tasks for approved ideas, run
+ * GitHub sweeps, materialize spec if something generated, and generate digest.
+ * Each step is isolated in its own try/catch so a failure in one step does not
+ * abort the others (REQ-029, REQ-008).
+ */
+export async function tickForProject(
+  db: Db,
+  proj: { id: string; repoFullName: string; defaultBranch: string },
+  deps: WorkerDeps = {},
+): Promise<{ didGenerate: boolean }> {
+  const {
+    generate = generateForApprovedIdea,
+    createIssues = (d, pid) => createIssuesForTasks(d, pid),
+    createBranches = (d, pid) => createBranchesForClaimedTasks(d, pid),
+    specMaterialize = (d, pid) => materializeSpec(d, pid),
+    digest = (d, opts) => generateDigest(d, opts),
+  } = deps;
+
   let didGenerate = false;
+
+  // Poll approved ideas scoped to this project.
+  const pending = await db
+    .select({ id: ideas.id, title: ideas.title })
+    .from(ideas)
+    .where(and(eq(ideas.state, "approved"), eq(ideas.projectId, proj.id)));
+
   for (const idea of pending) {
-    console.error(`[worker] generating for "${idea.title}" (${idea.id})…`);
-    const r = await generateForApprovedIdea(db, idea.id);
-    if (r.ok) didGenerate = true;
-    console.error(r.ok ? `[worker] ✓ ${r.taskKeys?.length ?? 0} task(s)` : `[worker] ✗ ${r.failure}`);
+    console.error(`[worker][${proj.id}] generating for "${idea.title}" (${idea.id})…`);
+    try {
+      const r = await generate(db, idea.id);
+      if (r.ok) didGenerate = true;
+      console.error(r.ok ? `[worker][${proj.id}] ✓ ${r.taskKeys?.length ?? 0} task(s)` : `[worker][${proj.id}] ✗ ${r.failure}`);
+    } catch (e) {
+      console.error(`[worker][${proj.id}] generation error:`, e instanceof Error ? e.message : e);
+    }
   }
 
-  // Open GitHub issues for any tasks that don't have one yet (REQ-009).
+  // Open GitHub issues for any tasks in this project that don't have one yet (REQ-009).
   try {
-    const { created } = await createIssuesForTasks(db);
-    if (created.length) console.error(`[worker] opened ${created.length} issue(s): ${created.join(", ")}`);
+    const { created } = await createIssues(db, proj.id);
+    if (created.length) console.error(`[worker][${proj.id}] opened ${created.length} issue(s): ${created.join(", ")}`);
   } catch (e) {
-    console.error("[worker] issue creation skipped:", e instanceof Error ? e.message : e);
+    console.error(`[worker][${proj.id}] issue creation skipped:`, e instanceof Error ? e.message : e);
   }
 
-  // Create branches for any claimed task that doesn't have one yet (REQ-011).
+  // Create branches for any claimed task in this project that doesn't have one yet (REQ-011).
   try {
-    const { created } = await createBranchesForClaimedTasks(db);
-    if (created.length) console.error(`[worker] created ${created.length} branch(es): ${created.join(", ")}`);
+    const { created } = await createBranches(db, proj.id);
+    if (created.length) console.error(`[worker][${proj.id}] created ${created.length} branch(es): ${created.join(", ")}`);
   } catch (e) {
-    console.error("[worker] branch creation skipped:", e instanceof Error ? e.message : e);
+    console.error(`[worker][${proj.id}] branch creation skipped:`, e instanceof Error ? e.message : e);
   }
 
-  // Re-materialize the spec when requirements/tasks changed (REQ-012).
+  // Re-materialize the spec for this project when requirements/tasks changed (REQ-012).
   if (didGenerate) {
     try {
-      const m = await materializeSpec(db);
-      console.error(`[worker] spec materialized (${m.requirementCount} reqs, ${m.sha.slice(0, 7)})`);
+      const m = await specMaterialize(db, proj.id);
+      console.error(`[worker][${proj.id}] spec materialized (${m.requirementCount} reqs, ${m.sha.slice(0, 7)})`);
     } catch (e) {
-      console.error("[worker] spec materialization skipped:", e instanceof Error ? e.message : e);
+      console.error(`[worker][${proj.id}] spec materialization skipped:`, e instanceof Error ? e.message : e);
     }
+  }
+
+  // Generate digest for this project if due (REQ-026).
+  try {
+    const d = await digest(db, { projectId: proj.id });
+    if (d.generated) console.error(`[worker][${proj.id}] digest generated (${d.eventCount} events)`);
+  } catch (e) {
+    console.error(`[worker][${proj.id}] digest skipped:`, e instanceof Error ? e.message : e);
+  }
+
+  return { didGenerate };
+}
+
+// One pass: iterate all projects and run tickForProject for each.
+export async function tick(db: Db, deps: WorkerDeps = {}): Promise<void> {
+  const projects = await listProjects(db);
+  for (const proj of projects) {
+    await tickForProject(db, proj, deps);
   }
 }
 
@@ -62,7 +116,20 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e) => {
-  console.error("[worker] fatal:", e instanceof Error ? e.message : e);
-  process.exit(1);
-});
+// Only run when executed directly, not when imported by tests.
+// process.argv[1] is the entry file; tsx resolves it to an absolute path.
+const isMain =
+  typeof process !== "undefined" &&
+  process.argv[1] != null &&
+  (process.argv[1].endsWith("index.ts") || process.argv[1].endsWith("index.js")) &&
+  // When imported as a module in tests, import.meta.url won't match argv[1] exactly,
+  // but the simplest guard is checking that we're NOT being imported from a test file.
+  !process.argv[1].endsWith(".test.ts") &&
+  !process.argv[1].endsWith(".test.js");
+
+if (isMain) {
+  main().catch((e) => {
+    console.error("[worker] fatal:", e instanceof Error ? e.message : e);
+    process.exit(1);
+  });
+}

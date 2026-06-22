@@ -59,7 +59,7 @@ test("issues closed/reopened mirror github_status and emit the change; unknown i
     const reqId = await requirementId(db, projId);
     await addTask(db, reqId, "TASK-001", 42, projId);
 
-    const r1 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 42 } });
+    const r1 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 42 }, repository: { full_name: "acme/repo" } });
     assert.deepEqual(r1, { changed: true, taskKey: "TASK-001", to: "closed" });
     assert.equal((await db.select().from(tasks).where(eq(tasks.key, "TASK-001")))[0].githubStatus, "closed");
     const evs = await db.select().from(events).where(eq(events.type, "task.github_status_changed"));
@@ -67,18 +67,18 @@ test("issues closed/reopened mirror github_status and emit the change; unknown i
     assert.deepEqual(evs[0].payload, { from: "open", to: "closed" });
     assert.equal(evs[0].projectId, projId, "task.github_status_changed event carries projectId");
 
-    const r2 = await handleWebhook(db, "issues", { action: "reopened", issue: { number: 42 } });
+    const r2 = await handleWebhook(db, "issues", { action: "reopened", issue: { number: 42 }, repository: { full_name: "acme/repo" } });
     assert.equal(r2.to, "open");
     assert.equal((await db.select().from(tasks).where(eq(tasks.key, "TASK-001")))[0].githubStatus, "open");
 
     // Re-closing emits again; a no-change delivery does not.
-    const r3 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 42 } });
+    const r3 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 42 }, repository: { full_name: "acme/repo" } });
     assert.equal(r3.changed, true);
-    const r4 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 42 } });
+    const r4 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 42 }, repository: { full_name: "acme/repo" } });
     assert.equal(r4.changed, false, "already closed — no duplicate event");
 
     // Unknown issue number → no-op.
-    const r5 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 999 } });
+    const r5 = await handleWebhook(db, "issues", { action: "closed", issue: { number: 999 }, repository: { full_name: "acme/repo" } });
     assert.equal(r5.changed, false);
   } finally {
     await close();
@@ -95,6 +95,7 @@ test("a merged PR titled [TASK-NNN] closes that task; a non-merged PR does not",
     const r = await handleWebhook(db, "pull_request", {
       action: "closed",
       pull_request: { merged: true, title: "[TASK-005] implement the thing" },
+      repository: { full_name: "acme/repo" },
     });
     assert.deepEqual(r, { changed: true, taskKey: "TASK-005", to: "closed" });
     assert.equal((await db.select().from(tasks).where(eq(tasks.key, "TASK-005")))[0].githubStatus, "closed");
@@ -105,8 +106,52 @@ test("a merged PR titled [TASK-NNN] closes that task; a non-merged PR does not",
     const r2 = await handleWebhook(db, "pull_request", {
       action: "closed",
       pull_request: { merged: false, title: "[TASK-006] abandoned" },
+      repository: { full_name: "acme/repo" },
     });
     assert.equal(r2.changed, false);
+  } finally {
+    await close();
+  }
+});
+
+test("webhook scoped to repo: same issue number in project B does not affect project A's task", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    // Project A: acme/repo-a, task TASK-A01 with issue #7
+    const [projA] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/repo-a", defaultBranch: "main", installationId: 1, localClonePath: "/a" })
+      .returning({ id: project.id });
+    const [reqA] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: projA.id })
+      .returning({ id: requirements.id });
+    await addTask(db, reqA.id, "TASK-A01", 7, projA.id);
+
+    // Project B: acme/repo-b, task TASK-B01 with the SAME issue number #7
+    const [projB] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/repo-b", defaultBranch: "main", installationId: 2, localClonePath: "/b" })
+      .returning({ id: project.id });
+    const [reqB] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: projB.id })
+      .returning({ id: requirements.id });
+    await addTask(db, reqB.id, "TASK-B01", 7, projB.id);
+
+    // Webhook from repo-b closing issue #7 — only B's task should change.
+    const r = await handleWebhook(db, "issues", {
+      action: "closed",
+      issue: { number: 7 },
+      repository: { full_name: "acme/repo-b" },
+    });
+    assert.equal(r.changed, true);
+    assert.equal(r.taskKey, "TASK-B01");
+
+    const taskA = (await db.select().from(tasks).where(eq(tasks.key, "TASK-A01")))[0];
+    const taskB = (await db.select().from(tasks).where(eq(tasks.key, "TASK-B01")))[0];
+    assert.equal(taskA.githubStatus, "open", "project A's task must not be affected by project B's webhook");
+    assert.equal(taskB.githubStatus, "closed", "project B's task is closed");
   } finally {
     await close();
   }

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { tasks } from "../db/schema";
+import { tasks, project } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { reconcileRequirementStatus } from "../requirements/lifecycle";
 
@@ -27,22 +27,26 @@ interface Target {
   issueNumber?: number;
   taskKey?: string;
   to: GithubStatus;
+  repoFullName: string | null;
 }
 
 // Map a webhook event to the status change it implies, or null to ignore it.
+// GitHub always sends a top-level `repository.full_name` in every event payload.
 function resolveTarget(eventType: string | null, payload: unknown): Target | null {
+  const repo = (payload as { repository?: { full_name?: string } })?.repository?.full_name ?? null;
+
   if (eventType === "issues") {
     const p = payload as { action?: string; issue?: { number?: number } };
     if (typeof p.issue?.number !== "number") return null;
-    if (p.action === "closed") return { by: "issue", issueNumber: p.issue.number, to: "closed" };
-    if (p.action === "reopened") return { by: "issue", issueNumber: p.issue.number, to: "open" };
+    if (p.action === "closed") return { by: "issue", issueNumber: p.issue.number, to: "closed", repoFullName: repo };
+    if (p.action === "reopened") return { by: "issue", issueNumber: p.issue.number, to: "open", repoFullName: repo };
     return null;
   }
   if (eventType === "pull_request") {
     const p = payload as { action?: string; pull_request?: { merged?: boolean; title?: string } };
     if (p.action === "closed" && p.pull_request?.merged === true && typeof p.pull_request.title === "string") {
       const m = /\[TASK-(\d+)\]/.exec(p.pull_request.title);
-      if (m) return { by: "task", taskKey: `TASK-${m[1]}`, to: "closed" };
+      if (m) return { by: "task", taskKey: `TASK-${m[1]}`, to: "closed", repoFullName: repo };
     }
     return null;
   }
@@ -59,6 +63,10 @@ export interface WebhookResult {
  * Mirror a GitHub status change onto the matching task (REQ-009). This is the
  * ONLY place github_status is ever written — the board cannot set it. Emits
  * task.github_status_changed in the same transaction.
+ *
+ * The task lookup is scoped to the project whose repo_full_name matches the
+ * incoming payload's repository.full_name (REQ-029). A same issue number in
+ * another project is never affected.
  */
 export async function handleWebhook(
   db: Db,
@@ -69,10 +77,28 @@ export async function handleWebhook(
   if (!target) return { changed: false };
 
   return db.transaction(async (tx) => {
-    const where =
+    // Resolve the project from the repo full name so the task lookup is scoped.
+    let projectId: string | null = null;
+    if (target.repoFullName) {
+      const [proj] = await tx
+        .select({ id: project.id })
+        .from(project)
+        .where(eq(project.repoFullName, target.repoFullName))
+        .limit(1);
+      projectId = proj?.id ?? null;
+    }
+
+    // Build the WHERE clause: by issue number or task key, always scoped to project.
+    const byClause =
       target.by === "issue"
         ? eq(tasks.githubIssueNumber, target.issueNumber!)
         : eq(tasks.key, target.taskKey!);
+
+    const where =
+      projectId !== null
+        ? and(byClause, eq(tasks.projectId, projectId))
+        : byClause;
+
     const [task] = await tx
       .select({ id: tasks.id, key: tasks.key, status: tasks.githubStatus, requirementId: tasks.requirementId, projectId: tasks.projectId })
       .from(tasks)
