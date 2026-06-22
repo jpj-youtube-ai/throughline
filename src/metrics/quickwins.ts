@@ -30,7 +30,7 @@ export function scoreTask(t: { effort: number; risk: string; confidence: number 
  * Surface the best unclaimed, open tasks to pick up next, highest score first.
  * Read-only over the board DB.
  */
-export async function listQuickWins(db: Db, limit = 8): Promise<QuickWin[]> {
+export async function listQuickWins(db: Db, projectId?: string, limit = 8): Promise<QuickWin[]> {
   const rows = await db
     .select({
       key: tasks.key,
@@ -42,7 +42,11 @@ export async function listQuickWins(db: Db, limit = 8): Promise<QuickWin[]> {
     })
     .from(tasks)
     .innerJoin(requirements, eq(tasks.requirementId, requirements.id))
-    .where(and(eq(tasks.claimState, "unclaimed"), eq(tasks.githubStatus, "open")))
+    .where(
+      projectId
+        ? and(eq(tasks.claimState, "unclaimed"), eq(tasks.githubStatus, "open"), eq(tasks.projectId, projectId))
+        : and(eq(tasks.claimState, "unclaimed"), eq(tasks.githubStatus, "open")),
+    )
     .orderBy(asc(tasks.key));
 
   return rows

@@ -1,9 +1,11 @@
 import { Fragment } from "react";
 import { getDb } from "@/db/client";
 import { listPipeline } from "@/pipeline/queries";
+import { activeProjectId } from "@/project/current";
 
 export async function PipelinePanel() {
-  const stages = await listPipeline(getDb());
+  const pid = await activeProjectId();
+  const stages = await listPipeline(getDb(), pid);
   const total = stages.reduce((n, s) => n + s.count, 0);
 
   return (

@@ -1,4 +1,4 @@
-import { eq, asc } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks, requirements, users } from "../db/schema";
 
@@ -19,7 +19,7 @@ export interface TaskListItem {
 
 // The task board (REQ-010): tasks with their REQ link, the three metrics, claim
 // state (+ claimer/branch), and the mirrored GitHub status.
-export async function listTasks(db: Db): Promise<TaskListItem[]> {
+export async function listTasks(db: Db, projectId?: string): Promise<TaskListItem[]> {
   return db
     .select({
       id: tasks.id,
@@ -38,5 +38,6 @@ export async function listTasks(db: Db): Promise<TaskListItem[]> {
     .from(tasks)
     .innerJoin(requirements, eq(tasks.requirementId, requirements.id))
     .leftJoin(users, eq(tasks.claimUserId, users.id))
+    .where(projectId ? eq(tasks.projectId, projectId) : undefined)
     .orderBy(asc(tasks.key));
 }

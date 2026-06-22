@@ -1,6 +1,7 @@
 import { getDb } from "@/db/client";
 import { listQuickWins } from "@/metrics/quickwins";
 import { Card, Pill, Empty, type Tone } from "@/components/ui";
+import { activeProjectId } from "@/project/current";
 
 const RISK_TONE: Record<string, Tone> = { low: "shipped", med: "planned", high: "risk" };
 
@@ -11,7 +12,8 @@ function scoreTone(score: number): Tone {
 }
 
 export async function QuickWinsPanel() {
-  const wins = await listQuickWins(getDb());
+  const pid = await activeProjectId();
+  const wins = await listQuickWins(getDb(), pid);
 
   return (
     <>

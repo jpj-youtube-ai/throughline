@@ -49,3 +49,55 @@ test("listPipeline buckets ideas and tasks into the five lifecycle stages", asyn
     await close();
   }
 });
+
+test("listPipeline with projectId returns only that project's ideas and tasks", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [projA] = await db
+      .insert(project)
+      .values({ repoFullName: "o/a", installationId: 1, defaultBranch: "main", localClonePath: "/a", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    const [projB] = await db
+      .insert(project)
+      .values({ repoFullName: "o/b", installationId: 2, defaultBranch: "main", localClonePath: "/b", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+
+    const [u] = await db.insert(users).values({ githubId: 2, githubLogin: "bob" }).returning({ id: users.id });
+
+    const [rA] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "Req A", description: "d", provenance: "imported", projectId: projA.id })
+      .returning({ id: requirements.id });
+    const [rB] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "Req B", description: "d", provenance: "imported", projectId: projB.id })
+      .returning({ id: requirements.id });
+
+    await db.insert(ideas).values([
+      { title: "Idea A", why: "w", authorId: u.id, state: "voting", projectId: projA.id },
+      { title: "Idea B", why: "w", authorId: u.id, state: "voting", projectId: projB.id },
+    ]);
+    await db.insert(tasks).values([
+      { key: "TASK-001", title: "Task A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 80, projectId: projA.id },
+      { key: "TASK-001", title: "Task B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 80, projectId: projB.id },
+    ]);
+
+    const stagesA = await listPipeline(db, projA.id);
+    const byA = Object.fromEntries(stagesA.map((s) => [s.key, s]));
+    assert.equal(byA.voting.count, 1);
+    assert.equal(byA.voting.items[0].label, "Idea A");
+    assert.equal(byA.open.count, 1);
+    assert.equal(byA.open.items[0].label, "TASK-001");
+
+    const stagesB = await listPipeline(db, projB.id);
+    const byB = Object.fromEntries(stagesB.map((s) => [s.key, s]));
+    assert.equal(byB.voting.count, 1);
+    assert.equal(byB.voting.items[0].label, "Idea B");
+    assert.equal(byB.open.count, 1);
+
+    // Cross-check: project A stages contain no project B data
+    assert.ok(!byA.voting.items.some((it) => it.label === "Idea B"));
+  } finally {
+    await close();
+  }
+});

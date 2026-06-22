@@ -1,4 +1,4 @@
-import { inArray, asc } from "drizzle-orm";
+import { and, inArray, eq, asc } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { ideas, tasks } from "../db/schema";
 
@@ -24,15 +24,20 @@ function truncate(s: string, n: number): string {
  * becomes merged work. Read-only over the board DB — ideas in voting/approved,
  * then tasks by claim + mirrored github status.
  */
-export async function listPipeline(db: Db): Promise<PipelineStage[]> {
+export async function listPipeline(db: Db, projectId?: string): Promise<PipelineStage[]> {
   const ideaRows = await db
     .select({ title: ideas.title, state: ideas.state })
     .from(ideas)
-    .where(inArray(ideas.state, ["voting", "approved"]))
+    .where(
+      projectId
+        ? and(inArray(ideas.state, ["voting", "approved"]), eq(ideas.projectId, projectId))
+        : inArray(ideas.state, ["voting", "approved"]),
+    )
     .orderBy(asc(ideas.title));
   const taskRows = await db
     .select({ key: tasks.key, claimState: tasks.claimState, githubStatus: tasks.githubStatus })
     .from(tasks)
+    .where(projectId ? eq(tasks.projectId, projectId) : undefined)
     .orderBy(asc(tasks.key));
 
   const ideaItem = (title: string): PipelineItem => ({ label: truncate(title, 36), href: "/ideas" });

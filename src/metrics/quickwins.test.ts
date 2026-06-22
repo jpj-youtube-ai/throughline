@@ -47,3 +47,41 @@ test("listQuickWins ranks only unclaimed/open tasks by score", async () => {
     await close();
   }
 });
+
+test("listQuickWins with projectId returns only that project's tasks", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [projA] = await db
+      .insert(project)
+      .values({ repoFullName: "o/a", installationId: 1, defaultBranch: "main", localClonePath: "/a", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+    const [projB] = await db
+      .insert(project)
+      .values({ repoFullName: "o/b", installationId: 2, defaultBranch: "main", localClonePath: "/b", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id });
+
+    const [rA] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "Req A", description: "d", provenance: "imported", projectId: projA.id })
+      .returning({ id: requirements.id });
+    const [rB] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "Req B", description: "d", provenance: "imported", projectId: projB.id })
+      .returning({ id: requirements.id });
+
+    await db.insert(tasks).values([
+      { key: "TASK-001", title: "Win A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 90, projectId: projA.id },
+      { key: "TASK-001", title: "Win B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 90, projectId: projB.id },
+    ]);
+
+    const winsA = await listQuickWins(db, projA.id);
+    assert.equal(winsA.length, 1);
+    assert.equal(winsA[0].title, "Win A");
+
+    const winsB = await listQuickWins(db, projB.id);
+    assert.equal(winsB.length, 1);
+    assert.equal(winsB[0].title, "Win B");
+  } finally {
+    await close();
+  }
+});

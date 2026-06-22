@@ -4,12 +4,14 @@ import { listTasks } from "@/tasks/queries";
 import { Card, Pill, Empty, buttonClass, type Tone } from "@/components/ui";
 import { unclaim } from "./actions";
 import { ClaimButton } from "./claim-button";
+import { activeProjectId } from "@/project/current";
 
 const RISK_TONE: Record<string, Tone> = { low: "shipped", med: "planned", high: "risk" };
 
 export async function TasksPanel() {
   const session = await auth();
-  const tasks = await listTasks(getDb());
+  const pid = await activeProjectId();
+  const tasks = await listTasks(getDb(), pid);
 
   return (
     <>
