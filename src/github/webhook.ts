@@ -86,6 +86,9 @@ export async function handleWebhook(
         .where(eq(project.repoFullName, target.repoFullName))
         .limit(1);
       projectId = proj?.id ?? null;
+      // An incoming repo we don't have a project for → no-op. Never fall through to
+      // an unscoped lookup that could touch a same-numbered task in another project.
+      if (projectId === null) return { changed: false };
     }
 
     // Build the WHERE clause: by issue number or task key, always scoped to project.

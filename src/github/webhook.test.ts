@@ -156,3 +156,30 @@ test("webhook scoped to repo: same issue number in project B does not affect pro
     await close();
   }
 });
+
+test("webhook for an unbound repo no-ops (never touches another project's same-numbered task)", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [proj] = await db
+      .insert(project)
+      .values({ repoFullName: "acme/repo-a", defaultBranch: "main", installationId: 1, localClonePath: "/a" })
+      .returning({ id: project.id });
+    const [req] = await db
+      .insert(requirements)
+      .values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: proj.id })
+      .returning({ id: requirements.id });
+    await addTask(db, req.id, "TASK-A01", 7, proj.id);
+
+    // Webhook from a repo that is NOT bound to any project → no-op.
+    const r = await handleWebhook(db, "issues", {
+      action: "closed",
+      issue: { number: 7 },
+      repository: { full_name: "acme/never-bound" },
+    });
+    assert.equal(r.changed, false);
+    const taskA = (await db.select().from(tasks).where(eq(tasks.key, "TASK-A01")))[0];
+    assert.equal(taskA.githubStatus, "open", "an unbound-repo webhook must not change any task");
+  } finally {
+    await close();
+  }
+});
