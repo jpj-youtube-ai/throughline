@@ -8,6 +8,7 @@ import { createBranchesForClaimedTasks } from "../github/branches";
 import { materializeSpec, type MaterializeResult } from "../spec/materialize";
 import { generateDigest, type GenerateResult } from "../digest/send";
 import { listProjects } from "../project/list";
+import { formatError } from "./format-error";
 
 // Injectable overrides — used in tests to avoid hitting external services.
 export interface WorkerDeps {
@@ -52,7 +53,7 @@ export async function tickForProject(
       if (r.ok) didGenerate = true;
       console.error(r.ok ? `[worker][${proj.id}] ✓ ${r.taskKeys?.length ?? 0} task(s)` : `[worker][${proj.id}] ✗ ${r.failure}`);
     } catch (e) {
-      console.error(`[worker][${proj.id}] generation error:`, e instanceof Error ? e.message : e);
+      console.error(`[worker][${proj.id}] generation error:`, formatError(e));
     }
   }
 
@@ -61,7 +62,7 @@ export async function tickForProject(
     const { created } = await createIssues(db, proj.id);
     if (created.length) console.error(`[worker][${proj.id}] opened ${created.length} issue(s): ${created.join(", ")}`);
   } catch (e) {
-    console.error(`[worker][${proj.id}] issue creation skipped:`, e instanceof Error ? e.message : e);
+    console.error(`[worker][${proj.id}] issue creation skipped:`, formatError(e));
   }
 
   // Create branches for any claimed task in this project that doesn't have one yet (REQ-011).
@@ -69,7 +70,7 @@ export async function tickForProject(
     const { created } = await createBranches(db, proj.id);
     if (created.length) console.error(`[worker][${proj.id}] created ${created.length} branch(es): ${created.join(", ")}`);
   } catch (e) {
-    console.error(`[worker][${proj.id}] branch creation skipped:`, e instanceof Error ? e.message : e);
+    console.error(`[worker][${proj.id}] branch creation skipped:`, formatError(e));
   }
 
   // Re-materialize the spec for this project when requirements/tasks changed (REQ-012).
@@ -78,7 +79,7 @@ export async function tickForProject(
       const m = await specMaterialize(db, proj.id);
       console.error(`[worker][${proj.id}] spec materialized (${m.requirementCount} reqs, ${m.sha.slice(0, 7)})`);
     } catch (e) {
-      console.error(`[worker][${proj.id}] spec materialization skipped:`, e instanceof Error ? e.message : e);
+      console.error(`[worker][${proj.id}] spec materialization skipped:`, formatError(e));
     }
   }
 
@@ -87,7 +88,7 @@ export async function tickForProject(
     const d = await digest(db, { projectId: proj.id });
     if (d.generated) console.error(`[worker][${proj.id}] digest generated (${d.eventCount} events)`);
   } catch (e) {
-    console.error(`[worker][${proj.id}] digest skipped:`, e instanceof Error ? e.message : e);
+    console.error(`[worker][${proj.id}] digest skipped:`, formatError(e));
   }
 
   return { didGenerate };
@@ -110,7 +111,7 @@ async function main(): Promise<void> {
     try {
       await tick(db);
     } catch (e) {
-      console.error("[worker] tick error:", e instanceof Error ? e.message : e);
+      console.error("[worker] tick error:", formatError(e));
     }
     await new Promise((r) => setTimeout(r, intervalMs));
   }
@@ -129,7 +130,7 @@ const isMain =
 
 if (isMain) {
   main().catch((e) => {
-    console.error("[worker] fatal:", e instanceof Error ? e.message : e);
+    console.error("[worker] fatal:", formatError(e));
     process.exit(1);
   });
 }
