@@ -4,17 +4,26 @@ import { createClient } from "../anthropic";
 const MODEL_ID = "claude-sonnet-4-6";
 const MAX_HTML_BYTES = 20000;
 
-const SYSTEM = `You produce a SMALL, self-contained HTML mockup that helps a developer
-instantly see what a software task will do. Rules:
+const SYSTEM = `You produce ONE small, self-contained HTML "explainer" graphic that lets a
+NON-TECHNICAL person instantly understand what a change does — like explaining it to a
+friend who can't code. Rules:
 - Output ONLY one HTML document. No prose, no markdown, no code fences.
 - Inline <style> only. No external resources, no <script>, no network.
-- Keep it compact (well under 20KB), ~900px wide, clean and modern.
-- Adapt to the task: for a user-facing change, mock the resulting screen/component;
-  for a backend change (DB, webhook, event log), draw a simple before/after or a
-  small flow / data-shape diagram using styled boxes and arrows.`;
+- Be VISUAL-FIRST with very little text: big simple shapes, arrows, and icons (inline SVG
+  or emoji are fine), plus at most a few short plain-language labels.
+- NO code, file names, technical terms, data structures, or app-UI mockups.
+- Show the OUTCOME / benefit — ideally a real-world ANALOGY, or a simple before -> after.
+- One clear idea. Friendly, calm colors, lots of whitespace, ~900px wide, well under 20KB.`;
 
 function buildUserMessage(task: { key: string; title: string; body: string }): string {
-  return `Task ${task.key}: ${task.title}\n\nDetails:\n${task.body}\n\nReturn the HTML mockup now.`;
+  return `Here is a software change. Draw a simple visual explainer for a NON-TECHNICAL person: what does this actually DO for them, shown as a picture, diagram, or real-world analogy — not the technical details.
+
+Title: ${task.title}
+
+Background (for your understanding only — do NOT copy this text into the image):
+${task.body}
+
+Return the HTML explainer now.`;
 }
 
 function extractText(message: { content: Array<{ type: string; text?: string }> }): string {
