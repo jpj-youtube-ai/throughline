@@ -3,7 +3,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { ideas, requirements, tasks, project } from "../db/schema";
-import { buildSlice } from "../repoSlice";
+import { buildSlice, type BuildSliceOptions, type RepoSlice } from "../repoSlice";
 import { SYSTEM_PROMPT, buildUserMessage } from "../prompt";
 import { estimateTokens } from "../tokens";
 import { generateTasks } from "./run";
@@ -69,7 +69,7 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     excludeAbs: [specPath, claudePath],
     ideaTitle: idea.title,
     ideaWhy: why,
-    includes: [],
+    includes: proj.contextPins,
     relevantPaths: [],
     budgetTokens: Math.max(0, MAX_CONTEXT_TOKENS - fixed),
   });
@@ -118,9 +118,10 @@ export interface GenerateForRequirementResult {
 export async function generateForRequirement(
   db: Db,
   reqId: string,
-  opts?: { generate?: typeof GenerateTasksFn },
+  opts?: { generate?: typeof GenerateTasksFn; buildSlice?: (o: BuildSliceOptions) => RepoSlice },
 ): Promise<GenerateForRequirementResult> {
   const generate = opts?.generate ?? generateTasks;
+  const buildSliceFn = opts?.buildSlice ?? buildSlice;
 
   const [req] = await db
     .select({ id: requirements.id, title: requirements.title, description: requirements.description, projectId: requirements.projectId })
@@ -149,12 +150,12 @@ export async function generateForRequirement(
     estimateTokens(req.title + seedWhy) +
     estimateTokens(SYSTEM_PROMPT) +
     800;
-  const slice = buildSlice({
+  const slice = buildSliceFn({
     repoPath: proj.localClonePath,
     excludeAbs: [specPath, claudePath],
     ideaTitle: req.title,
     ideaWhy: seedWhy,
-    includes: [],
+    includes: proj.contextPins,
     relevantPaths: [],
     budgetTokens: Math.max(0, MAX_CONTEXT_TOKENS - fixed),
   });

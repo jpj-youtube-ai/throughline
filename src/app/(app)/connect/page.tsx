@@ -3,15 +3,30 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { users } from "@/db/schema";
-import { listProjects } from "@/project/list";
+import { listProjectsWithPins } from "@/project/list";
+import { setContextPins } from "@/project/pins";
+import { matchPins } from "@/repoSlice";
 import { listConnectableRepos, bindAndClone, type ConnectableRepo } from "@/project/connect";
-import { PageHeader, Card, Pill, buttonClass } from "@/components/ui";
+import { PageHeader, Card, Pill, buttonClass, fieldClass } from "@/components/ui";
 import { SyncClaudeMdButton } from "@/components/sync-claude-md-button";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
 
 const WEBHOOK_PATH = "/api/github/webhook";
+
+async function savePins(formData: FormData) {
+  "use server";
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Not signed in.");
+  const db = getDb();
+  await setContextPins(db, {
+    projectId: String(formData.get("projectId")),
+    pins: String(formData.get("pins") ?? ""),
+    actorId: session.user.id,
+  });
+  revalidatePath("/connect");
+}
 
 async function bind(formData: FormData) {
   "use server";
@@ -35,7 +50,11 @@ export default async function ConnectPage() {
   const actorId = session?.user?.id;
 
   // Fetch bound projects and active project
-  const boundProjects = await listProjects(db);
+  const boundProjects = await listProjectsWithPins(db);
+  const matchedCounts: Record<string, number> = {};
+  for (const p of boundProjects) {
+    matchedCounts[p.id] = p.contextPins.length ? matchPins(p.localClonePath, p.contextPins).length : 0;
+  }
   const boundRepoNames = new Set(boundProjects.map((p) => p.repoFullName));
 
   let activeProjectId: string | null = null;
@@ -78,18 +97,43 @@ export default async function ConnectPage() {
               const isActive = p.id === activeProjectId;
               return (
                 <li key={p.id}>
-                  <Card className={`flex items-center gap-3 p-4 ${isActive ? "border-l-2 border-l-shipped" : ""}`}>
-                    <div className="min-w-0 flex-1">
-                      <a
-                        href={`https://github.com/${p.repoFullName}`}
-                        className="font-mono text-sm text-spine-deep underline decoration-hairline underline-offset-2"
-                      >
-                        {p.repoFullName}
-                      </a>
-                      <span className="ml-2 font-mono text-[11px] text-graphite">{p.defaultBranch}</span>
+                  <Card className={`p-4 ${isActive ? "border-l-2 border-l-shipped" : ""}`}>
+                    <div className="flex w-full items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <a
+                          href={`https://github.com/${p.repoFullName}`}
+                          className="font-mono text-sm text-spine-deep underline decoration-hairline underline-offset-2"
+                        >
+                          {p.repoFullName}
+                        </a>
+                        <span className="ml-2 font-mono text-[11px] text-graphite">{p.defaultBranch}</span>
+                      </div>
+                      <SyncClaudeMdButton projectId={p.id} />
+                      {isActive && <Pill tone="shipped">active</Pill>}
                     </div>
-                    <SyncClaudeMdButton projectId={p.id} />
-                    {isActive && <Pill tone="shipped">active</Pill>}
+                    <form action={savePins} className="mt-3 w-full border-t border-hairline pt-3">
+                      <input type="hidden" name="projectId" value={p.id} />
+                      <label className="block">
+                        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">
+                          Context pins — always in the generation slice (one path or glob per line)
+                        </span>
+                        <textarea
+                          name="pins"
+                          rows={3}
+                          defaultValue={p.contextPins.join("\n")}
+                          placeholder={"src/db/events.ts\nsrc/db/schema.ts\ndrizzle/**"}
+                          className={`${fieldClass} font-mono`}
+                        />
+                      </label>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <span className="font-mono text-[11px] text-graphite">
+                          {p.contextPins.length === 0
+                            ? "No pins — generation uses keyword-ranked files only."
+                            : `${matchedCounts[p.id]} of ${p.contextPins.length} paths matched the clone · pins fill the budget first, keep the list small`}
+                        </span>
+                        <button type="submit" className={buttonClass("quiet")}>Save pins</button>
+                      </div>
+                    </form>
                   </Card>
                 </li>
               );

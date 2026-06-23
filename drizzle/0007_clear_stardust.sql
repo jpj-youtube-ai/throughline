@@ -1,0 +1,1 @@
+ALTER TABLE "project" ADD COLUMN "context_pins" jsonb DEFAULT '[]'::jsonb NOT NULL;

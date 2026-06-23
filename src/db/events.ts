@@ -5,6 +5,7 @@ import type { Tx } from "./client";
 export type EventType =
   | "project.genesis_imported"
   | "project.bound"
+  | "project.context_pins_changed"
   | "requirement.declared"
   | "requirement.status_changed"
   | "requirement.amended"

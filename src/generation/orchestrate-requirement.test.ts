@@ -10,6 +10,7 @@ import { requirements, tasks, project } from "../db/schema";
 import { generateForRequirement } from "./orchestrate";
 import type { GenerateTasksResult } from "./run";
 import type { generateTasks as GenerateTasksFn } from "./run";
+import type { BuildSliceOptions } from "../repoSlice";
 
 const fakeGenerate = async (): Promise<GenerateTasksResult> => ({
   ok: true,
@@ -174,5 +175,31 @@ test("generateForRequirement loads the subject requirement's project (not anothe
     await close();
     fs.rmSync(dirA, { recursive: true, force: true });
     fs.rmSync(dirB, { recursive: true, force: true });
+  }
+});
+
+test("generateForRequirement passes the project's context pins as the slice includes", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p] = await db.insert(project).values({
+      repoFullName: "o/r", installationId: 1, defaultBranch: "main",
+      localClonePath: "/nonexistent", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+      contextPins: ["src/db/events.ts", "src/db/schema.ts"],
+    }).returning({ id: project.id });
+    const [req] = await db.insert(requirements).values({
+      key: "REQ-001", title: "Add a leaderboard", description: "top scorers", provenance: "imported", projectId: p.id,
+    }).returning({ id: requirements.id });
+
+    let capturedIncludes: string[] | undefined;
+    const recordingSlice = (o: BuildSliceOptions) => {
+      capturedIncludes = o.includes;
+      return { repoLabel: "r", fileCount: 0, nearEmpty: true, tree: "", treeTruncated: false, files: [], omitted: [] };
+    };
+
+    const r = await generateForRequirement(db, req.id, { generate: fakeGenerate, buildSlice: recordingSlice });
+    assert.equal(r.ok, true, `generation should succeed: ${r.failure}`);
+    assert.deepEqual(capturedIncludes, ["src/db/events.ts", "src/db/schema.ts"]);
+  } finally {
+    await close();
   }
 });

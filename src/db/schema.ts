@@ -42,6 +42,8 @@ export const project = pgTable("project", {
   specPath: text("spec_path").notNull().default("SPEC.md"),
   claudeMdPath: text("claude_md_path").notNull().default("CLAUDE.md"),
   conventionVersion: integer("convention_version").notNull().default(1),
+  // Always-include paths/globs for the generation slice (REQ-008). Operator-curated.
+  contextPins: jsonb("context_pins").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique("project_repo_full_name_unique").on(t.repoFullName)]);
 

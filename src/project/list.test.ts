@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
+import { project } from "../db/schema";
 import { bindProject } from "./bind";
-import { listProjects } from "./list";
+import { listProjects, listProjectsWithPins } from "./list";
 
 const BASE = {
   installationId: 12345,
@@ -48,6 +50,20 @@ test("listProjects returns only the shape {id, repoFullName, defaultBranch}", as
     assert.equal(row.defaultBranch, "main");
     // No extra fields beyond the three declared
     assert.deepEqual(Object.keys(row).sort(), ["defaultBranch", "id", "repoFullName"]);
+  } finally {
+    await close();
+  }
+});
+
+test("listProjectsWithPins returns clone path and context pins", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const a = await bindProject(db, { ...BASE, repoFullName: "acme/alpha" });
+    await db.update(project).set({ contextPins: ["src/db/events.ts"] }).where(eq(project.id, a.id));
+    const [row] = await listProjectsWithPins(db);
+    assert.equal(row.repoFullName, "acme/alpha");
+    assert.equal(row.localClonePath, "/tmp/clone");
+    assert.deepEqual(row.contextPins, ["src/db/events.ts"]);
   } finally {
     await close();
   }

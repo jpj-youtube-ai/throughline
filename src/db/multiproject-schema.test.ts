@@ -83,3 +83,19 @@ test("events is still append-only after the migration", async () => {
     await close();
   }
 });
+
+test("project.context_pins defaults to empty and round-trips", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p] = await db
+      .insert(project)
+      .values({ repoFullName: "o/r", installationId: 1, defaultBranch: "main", localClonePath: "/t", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md" })
+      .returning({ id: project.id, contextPins: project.contextPins });
+    assert.deepEqual(p.contextPins, []);
+    await db.update(project).set({ contextPins: ["src/db/events.ts"] }).where(eq(project.id, p.id));
+    const [r] = await db.select({ contextPins: project.contextPins }).from(project).where(eq(project.id, p.id));
+    assert.deepEqual(r.contextPins, ["src/db/events.ts"]);
+  } finally {
+    await close();
+  }
+});

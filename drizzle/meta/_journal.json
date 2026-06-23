@@ -50,6 +50,13 @@
       "when": 1782130851666,
       "tag": "0006_wet_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782207273900,
+      "tag": "0007_clear_stardust",
+      "breakpoints": true
     }
   ]
 }
