@@ -1,15 +1,23 @@
+import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { narratives } from "../db/schema";
+import { narratives, requirements } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { getActiveProjectId } from "../project/active";
 import { listActivity } from "../events/feed";
 import { generateNarrative, type GenerateNarrativeResult } from "./generate";
+import { generateRoadmapHtml } from "./roadmap";
+import { renderHtmlToPng } from "../preview/render";
 
 export type NarrativeGenerator = (eventDigest: string, eventCount: number) => Promise<GenerateNarrativeResult>;
 
 export interface MaterializeNarrativeResult {
   eventCount: number;
   chapters: number;
+}
+
+export interface RoadmapDeps {
+  generateRoadmap?: typeof generateRoadmapHtml;
+  renderPng?: typeof renderHtmlToPng;
 }
 
 const defaultGenerator: NarrativeGenerator = (eventDigest) => generateNarrative({ eventDigest });
@@ -23,6 +31,7 @@ const defaultGenerator: NarrativeGenerator = (eventDigest) => generateNarrative(
 export async function materializeNarrative(
   db: Db,
   generate: NarrativeGenerator = defaultGenerator,
+  roadmapDeps: RoadmapDeps = {},
 ): Promise<MaterializeNarrativeResult> {
   // chronological (listActivity is newest-first)
   const items = (await listActivity(db, undefined, 2000)).slice().reverse();
@@ -43,8 +52,27 @@ export async function materializeNarrative(
 
   const projectId = await getActiveProjectId(db, null);
 
+  // Best-effort roadmap image (REQ-016): grounded in the chapters + real requirement statuses.
+  const generateRoadmap = roadmapDeps.generateRoadmap ?? generateRoadmapHtml;
+  const renderPng = roadmapDeps.renderPng ?? renderHtmlToPng;
+  let roadmapHtml: string | null = null;
+  let roadmapImage: Buffer | null = null;
+  try {
+    const reqRows = await db
+      .select({ key: requirements.key, title: requirements.title, status: requirements.status })
+      .from(requirements)
+      .where(eq(requirements.projectId, projectId));
+    const html = await generateRoadmap({ chapters: result.content.chapters, requirements: reqRows });
+    if (html) {
+      roadmapImage = await renderPng(html);
+      roadmapHtml = html;
+    }
+  } catch (e) {
+    console.error("[narrative] roadmap failed:", e instanceof Error ? e.message : e);
+  }
+
   await db.transaction(async (tx) => {
-    await tx.insert(narratives).values({ eventCount, content: result.content, projectId });
+    await tx.insert(narratives).values({ eventCount, content: result.content, projectId, roadmapHtml, roadmapImage });
     await emitEvent(tx, {
       type: "narrative.generated",
       subjectType: "project",
