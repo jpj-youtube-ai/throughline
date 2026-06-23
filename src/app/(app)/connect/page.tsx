@@ -6,6 +6,7 @@ import { users } from "@/db/schema";
 import { listProjects } from "@/project/list";
 import { listConnectableRepos, bindAndClone, type ConnectableRepo } from "@/project/connect";
 import { PageHeader, Card, Pill, buttonClass } from "@/components/ui";
+import { SyncClaudeMdButton } from "@/components/sync-claude-md-button";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -87,6 +88,7 @@ export default async function ConnectPage() {
                       </a>
                       <span className="ml-2 font-mono text-[11px] text-graphite">{p.defaultBranch}</span>
                     </div>
+                    <SyncClaudeMdButton projectId={p.id} />
                     {isActive && <Pill tone="shipped">active</Pill>}
                   </Card>
                 </li>
