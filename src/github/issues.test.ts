@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
 import { project, requirements, tasks } from "../db/schema";
 import { createIssuesForTasks, type OpenIssueFn } from "./issues";
@@ -117,4 +118,62 @@ test("createIssuesForTasks without projectId defaults to oldest project", async 
   } finally {
     await close();
   }
+});
+
+async function seedOnePendingTask(db: Db) {
+  const [p] = await db.insert(project).values({ repoFullName: "acme/repo", installationId: 1, defaultBranch: "main", localClonePath: "/x" }).returning({ id: project.id });
+  const [r] = await db.insert(requirements).values({ key: "REQ-001", title: "t", description: "d", provenance: "imported", projectId: p.id }).returning({ id: requirements.id });
+  const [t] = await db.insert(tasks).values({ key: "TASK-001", title: "T one", body: "body one", requirementId: r.id, effort: 1, risk: "low", confidence: 50, projectId: p.id }).returning({ id: tasks.id });
+  return { projectId: p.id, taskId: t.id, key: "TASK-001" };
+}
+
+test("createIssuesForTasks embeds the preview image and stores it", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const ids = await seedOnePendingTask(db); // {projectId, taskId, key}
+    const bodies: string[] = [];
+    const openIssue = async (_i: number, _r: string, _t: string, body: string) => { bodies.push(body); return { number: 1, url: "u" }; };
+    await createIssuesForTasks(db, ids.projectId, openIssue, {
+      generatePreview: async () => "<html><body>mock</body></html>",
+      renderPng: async () => Buffer.from([0x89, 0x50, 0x4e, 0x47, 1]),
+      baseUrl: "https://example.test",
+    });
+    assert.match(bodies[0], new RegExp(`^!\\[preview\\]\\(https://example\\.test/preview/${ids.taskId}\\.png\\)`));
+    const [t] = await db.select({ img: tasks.previewImage, html: tasks.previewHtml }).from(tasks).where(eq(tasks.id, ids.taskId));
+    assert.ok(t.img && t.html);
+  } finally { await close(); }
+});
+
+test("createIssuesForTasks still creates the issue when preview generation fails", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const ids = await seedOnePendingTask(db);
+    const bodies: string[] = [];
+    const openIssue = async (_i: number, _r: string, _t: string, body: string) => { bodies.push(body); return { number: 2, url: "u" }; };
+    await createIssuesForTasks(db, ids.projectId, openIssue, {
+      generatePreview: async () => null, // LLM failed/skipped
+      renderPng: async () => { throw new Error("should not be called"); },
+      baseUrl: "https://example.test",
+    });
+    assert.ok(!bodies[0].includes("![preview]"));
+    const [t] = await db.select({ num: tasks.githubIssueNumber }).from(tasks).where(eq(tasks.id, ids.taskId));
+    assert.equal(t.num, 2); // issue created regardless
+  } finally { await close(); }
+});
+
+test("createIssuesForTasks still creates the issue when rendering throws", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const ids = await seedOnePendingTask(db);
+    const bodies: string[] = [];
+    const openIssue = async (_i: number, _r: string, _t: string, body: string) => { bodies.push(body); return { number: 3, url: "u" }; };
+    await createIssuesForTasks(db, ids.projectId, openIssue, {
+      generatePreview: async () => "<html><body>x</body></html>",
+      renderPng: async () => { throw new Error("chromium boom"); },
+      baseUrl: "https://example.test",
+    });
+    assert.ok(!bodies[0].includes("![preview]"));
+    const [t] = await db.select({ num: tasks.githubIssueNumber }).from(tasks).where(eq(tasks.id, ids.taskId));
+    assert.equal(t.num, 3);
+  } finally { await close(); }
 });

@@ -11,7 +11,12 @@ import {
   jsonb,
   timestamp,
   unique,
+  customType,
 } from "drizzle-orm/pg-core";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() { return "bytea"; },
+});
 
 export const requirementStatus = pgEnum("requirement_status", ["planned", "building", "shipped"]);
 export const provenance = pgEnum("provenance", ["imported", "voted", "drift"]);
@@ -100,6 +105,8 @@ export const tasks = pgTable("tasks", {
   branchName: text("branch_name"),
   githubIssueNumber: integer("github_issue_number"),
   githubIssueUrl: text("github_issue_url"),
+  previewHtml: text("preview_html"),
+  previewImage: bytea("preview_image"),
   // Mirrored from GitHub only -- written exclusively by the webhook handler.
   githubStatus: githubStatus("github_status").notNull().default("open"),
   branchCreatedAt: timestamp("branch_created_at", { withTimezone: true }),

@@ -3,6 +3,8 @@ import type { Db } from "../db/client";
 import { tasks, project } from "../db/schema";
 import { openIssue as realOpenIssue } from "./app";
 import { listProjects } from "../project/list";
+import { generatePreviewHtml } from "../preview/generate";
+import { renderHtmlToPng } from "../preview/render";
 
 export type OpenIssueFn = (
   installationId: number,
@@ -13,6 +15,12 @@ export type OpenIssueFn = (
 
 export interface CreateIssuesResult {
   created: string[]; // task keys that got an issue this run
+}
+
+export interface PreviewDeps {
+  generatePreview?: typeof generatePreviewHtml;
+  renderPng?: typeof renderHtmlToPng;
+  baseUrl?: string;
 }
 
 /**
@@ -28,6 +36,7 @@ export async function createIssuesForTasks(
   db: Db,
   projectId?: string,
   openIssue: OpenIssueFn = realOpenIssue,
+  previewDeps: PreviewDeps = {},
 ): Promise<CreateIssuesResult> {
   let resolvedProjectId: string;
   if (projectId) {
@@ -46,9 +55,26 @@ export async function createIssuesForTasks(
     .from(tasks)
     .where(and(isNull(tasks.githubIssueNumber), eq(tasks.projectId, resolvedProjectId)));
 
+  const generatePreview = previewDeps.generatePreview ?? generatePreviewHtml;
+  const renderPng = previewDeps.renderPng ?? renderHtmlToPng;
+  const baseUrl = previewDeps.baseUrl ?? process.env.PUBLIC_BASE_URL;
+
   const created: string[] = [];
   for (const t of pending) {
-    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, t.body);
+    let bodyPrefix = "";
+    if (baseUrl) {
+      try {
+        const html = await generatePreview({ key: t.key, title: t.title, body: t.body });
+        if (html) {
+          const png = await renderPng(html);
+          await db.update(tasks).set({ previewHtml: html, previewImage: png }).where(eq(tasks.id, t.id));
+          bodyPrefix = `![preview](${baseUrl}/preview/${t.id}.png)\n\n`;
+        }
+      } catch (e) {
+        console.error(`[issues] preview failed for ${t.key}:`, e instanceof Error ? e.message : e);
+      }
+    }
+    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, bodyPrefix + t.body);
     await db
       .update(tasks)
       .set({ githubIssueNumber: issue.number, githubIssueUrl: issue.url, updatedAt: new Date() })
