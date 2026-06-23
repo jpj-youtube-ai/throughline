@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
 import { project, events } from "../db/schema";
-import { upsertManagedBlock, syncClaudeMd } from "./claude-md";
+import { upsertManagedBlock, syncClaudeMd, syncClaudeMdForProject, managedBlockBody } from "./claude-md";
 
 const START = "<!-- THROUGHLINE:START -->";
 const END = "<!-- THROUGHLINE:END -->";
@@ -65,4 +65,69 @@ test("syncClaudeMd writes the block, bumps convention_version, emits claude_md.s
   } finally {
     await close();
   }
+});
+
+async function seedProj(db: Awaited<ReturnType<typeof createTestDb>>["db"]) {
+  const [p] = await db.insert(project).values({
+    repoFullName: "acme/repo", installationId: 7, defaultBranch: "main",
+    localClonePath: "/clones/acme__repo", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+  }).returning({ id: project.id, conventionVersion: project.conventionVersion });
+  return p;
+}
+
+test("syncClaudeMdForProject: already-synced when the block is present + identical (no commit/push/event)", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const p = await seedProj(db);
+    const existing = upsertManagedBlock("# CLAUDE.md\n", managedBlockBody()); // already up to date
+    let committed = false, pushed = false;
+    const r = await syncClaudeMdForProject(db, p.id, {
+      readFile: () => existing,
+      commit: () => { committed = true; return { sha: "x" }; },
+      push: async () => { pushed = true; },
+    });
+    assert.equal(r.status, "already-synced");
+    assert.equal(committed, false);
+    assert.equal(pushed, false);
+    const evs = await db.select().from(events).where(eq(events.type, "claude_md.synced"));
+    assert.equal(evs.length, 0);
+  } finally { await close(); }
+});
+
+test("syncClaudeMdForProject: creates + commits + pushes + bumps + emits when missing", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const p = await seedProj(db);
+    let committedContent = "", pushedArgs: unknown[] = [];
+    const r = await syncClaudeMdForProject(db, p.id, {
+      readFile: () => "", // no CLAUDE.md
+      commit: (_clone, _rel, content) => { committedContent = content; return { sha: "sha1" }; },
+      push: async (clone, repo, inst, branch) => { pushedArgs = [clone, repo, inst, branch]; },
+    });
+    assert.equal(r.status, "synced");
+    assert.equal(r.sha, "sha1");
+    assert.match(committedContent, /THROUGHLINE:START/);
+    assert.deepEqual(pushedArgs, ["/clones/acme__repo", "acme/repo", 7, "main"]);
+    const [ev] = await db.select().from(events).where(eq(events.type, "claude_md.synced"));
+    assert.ok(ev);
+    assert.equal(ev.projectId, p.id);
+    const [proj] = await db.select({ v: project.conventionVersion }).from(project).where(eq(project.id, p.id));
+    assert.equal(proj.v, p.conventionVersion + 1);
+  } finally { await close(); }
+});
+
+test("syncClaudeMdForProject: upserts the block into an existing CLAUDE.md (synced)", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const p = await seedProj(db);
+    let committedContent = "";
+    const r = await syncClaudeMdForProject(db, p.id, {
+      readFile: () => "# CLAUDE.md\n\nSome notes.\n", // present, no block
+      commit: (_c, _r, content) => { committedContent = content; return { sha: "s" }; },
+      push: async () => {},
+    });
+    assert.equal(r.status, "synced");
+    assert.match(committedContent, /Some notes\./); // surrounding content preserved
+    assert.match(committedContent, /THROUGHLINE:START/);
+  } finally { await close(); }
 });

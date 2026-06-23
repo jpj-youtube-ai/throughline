@@ -1,8 +1,11 @@
 import { asc, eq } from "drizzle-orm";
+import fs from "node:fs";
+import path from "node:path";
 import type { Db } from "../db/client";
 import { project } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { CONVENTIONS_MARKDOWN } from "../conventions";
+import { commitFileInClone, pushClone } from "../github/commit";
 
 const START = "<!-- THROUGHLINE:START -->";
 const END = "<!-- THROUGHLINE:END -->";
@@ -85,4 +88,62 @@ export async function syncClaudeMd(
   });
 
   return { conventionVersion: nextVersion, sha, content };
+}
+
+export interface SyncForProjectDeps {
+  readFile?: (absPath: string) => string;
+  commit?: typeof commitFileInClone;
+  push?: typeof pushClone;
+}
+
+/**
+ * Sync the managed CLAUDE.md block for one project (REQ-014), in-app: read the
+ * repo's CLAUDE.md from its clone, upsert the managed region, and — only if it
+ * changed — commit, push to the default branch, bump convention_version, and emit
+ * claude_md.synced. No-op (already-synced) when the block is already current;
+ * creates the file when absent. fs/commit/push are injectable for tests.
+ */
+export async function syncClaudeMdForProject(
+  db: Db,
+  projectId: string,
+  deps: SyncForProjectDeps = {},
+): Promise<{ status: "synced" | "already-synced"; sha?: string; conventionVersion?: number }> {
+  const [proj] = await db
+    .select({
+      id: project.id,
+      localClonePath: project.localClonePath,
+      claudeMdPath: project.claudeMdPath,
+      repoFullName: project.repoFullName,
+      installationId: project.installationId,
+      defaultBranch: project.defaultBranch,
+      conventionVersion: project.conventionVersion,
+    })
+    .from(project)
+    .where(eq(project.id, projectId))
+    .limit(1);
+  if (!proj) throw new Error("Project not found.");
+
+  const readFile = deps.readFile ?? ((p: string) => { try { return fs.readFileSync(p, "utf8"); } catch { return ""; } });
+  const commit = deps.commit ?? commitFileInClone;
+  const push = deps.push ?? pushClone;
+
+  const current = readFile(path.join(proj.localClonePath, proj.claudeMdPath));
+  const next = upsertManagedBlock(current, managedBlockBody());
+  if (next === current) return { status: "already-synced" };
+
+  const { sha } = await commit(proj.localClonePath, proj.claudeMdPath, next, "[claude-md] sync conventions");
+  await push(proj.localClonePath, proj.repoFullName, proj.installationId, proj.defaultBranch);
+
+  const nextVersion = proj.conventionVersion + 1;
+  await db.transaction(async (tx) => {
+    await tx.update(project).set({ conventionVersion: nextVersion }).where(eq(project.id, proj.id));
+    await emitEvent(tx, {
+      type: "claude_md.synced",
+      subjectType: "project",
+      subjectId: proj.id,
+      payload: { convention_version: nextVersion },
+      projectId: proj.id,
+    });
+  });
+  return { status: "synced", sha, conventionVersion: nextVersion };
 }
