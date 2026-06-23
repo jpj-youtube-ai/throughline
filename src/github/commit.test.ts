@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { pushClone } from "./commit";
+import { pushClone, syncCloneToRemote } from "./commit";
 
 test("pushClone pushes HEAD:<branch> to the token-authenticated origin url", async () => {
   const calls: { args: string[]; cwd: string }[] = [];
@@ -21,4 +21,16 @@ test("pushClone propagates a git failure", async () => {
     }),
     /push rejected/,
   );
+});
+
+test("syncCloneToRemote fetches the branch + hard-resets the clone to the remote tip", async () => {
+  const calls: string[][] = [];
+  await syncCloneToRemote("/clones/acme__repo", "acme/repo", 42, "main", {
+    getToken: async (id) => `tok-${id}`,
+    run: (args) => calls.push(args),
+  });
+  assert.deepEqual(calls, [
+    ["fetch", "https://x-access-token:tok-42@github.com/acme/repo.git", "main"],
+    ["reset", "--hard", "FETCH_HEAD"],
+  ]);
 });

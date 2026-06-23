@@ -5,7 +5,7 @@ import type { Db } from "../db/client";
 import { project } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { CONVENTIONS_MARKDOWN } from "../conventions";
-import { commitFileInClone, pushClone } from "../github/commit";
+import { commitFileInClone, pushClone, syncCloneToRemote } from "../github/commit";
 
 const START = "<!-- THROUGHLINE:START -->";
 const END = "<!-- THROUGHLINE:END -->";
@@ -91,6 +91,7 @@ export async function syncClaudeMd(
 }
 
 export interface SyncForProjectDeps {
+  syncRemote?: typeof syncCloneToRemote;
   readFile?: (absPath: string) => string;
   commit?: typeof commitFileInClone;
   push?: typeof pushClone;
@@ -123,9 +124,15 @@ export async function syncClaudeMdForProject(
     .limit(1);
   if (!proj) throw new Error("Project not found.");
 
+  const syncRemote = deps.syncRemote ?? syncCloneToRemote;
   const readFile = deps.readFile ?? ((p: string) => { try { return fs.readFileSync(p, "utf8"); } catch { return ""; } });
   const commit = deps.commit ?? commitFileInClone;
   const push = deps.push ?? pushClone;
+
+  // Reconcile the clone with the remote tip first, so we read the CURRENT CLAUDE.md
+  // and the resulting commit fast-forwards on push (the clone may have diverged:
+  // un-pushed [spec] materialize commits, or the remote moved independently).
+  await syncRemote(proj.localClonePath, proj.repoFullName, proj.installationId, proj.defaultBranch);
 
   const current = readFile(path.join(proj.localClonePath, proj.claudeMdPath));
   const next = upsertManagedBlock(current, managedBlockBody());

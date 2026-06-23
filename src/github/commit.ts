@@ -3,9 +3,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { getInstallationToken } from "./app";
 
+// Redact any installation token embedded in a git URL before it reaches a log or
+// error message (never expose x-access-token:<token>@). Mirrors github/clone.ts.
+function redact(s: string): string {
+  return s.replace(/x-access-token:[^@]+@/g, "x-access-token:***@");
+}
+
 function git(args: string[], cwd: string): string {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });
-  if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${r.stderr || r.stdout}`);
+  if (r.status !== 0) throw new Error(redact(`git ${args.join(" ")} failed: ${r.stderr || r.stdout}`));
   return r.stdout.trim();
 }
 
@@ -51,4 +57,26 @@ export async function pushClone(
   const token = await getToken(installationId);
   const url = `https://x-access-token:${token}@github.com/${repoFullName}.git`;
   run(["push", url, `HEAD:${branch}`], clonePath);
+}
+
+/**
+ * Reconcile a clone's branch with the remote tip before committing/pushing (REQ-014):
+ * fetch the branch with a fresh App token and hard-reset the clone to it. This
+ * discards any un-pushed local divergence (e.g. accumulated [spec] materialize
+ * commits) and any commits the remote gained independently, so the next commit
+ * fast-forwards on push instead of being rejected. Token getter + runner injectable.
+ */
+export async function syncCloneToRemote(
+  clonePath: string,
+  repoFullName: string,
+  installationId: number,
+  branch: string,
+  deps: PushDeps = {},
+): Promise<void> {
+  const getToken = deps.getToken ?? getInstallationToken;
+  const run = deps.run ?? ((args, cwd) => { git(args, cwd); });
+  const token = await getToken(installationId);
+  const url = `https://x-access-token:${token}@github.com/${repoFullName}.git`;
+  run(["fetch", url, branch], clonePath);
+  run(["reset", "--hard", "FETCH_HEAD"], clonePath);
 }

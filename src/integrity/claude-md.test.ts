@@ -82,6 +82,7 @@ test("syncClaudeMdForProject: already-synced when the block is present + identic
     const existing = upsertManagedBlock("# CLAUDE.md\n", managedBlockBody()); // already up to date
     let committed = false, pushed = false;
     const r = await syncClaudeMdForProject(db, p.id, {
+      syncRemote: async () => {},
       readFile: () => existing,
       commit: () => { committed = true; return { sha: "x" }; },
       push: async () => { pushed = true; },
@@ -98,8 +99,9 @@ test("syncClaudeMdForProject: creates + commits + pushes + bumps + emits when mi
   const { db, close } = await createTestDb();
   try {
     const p = await seedProj(db);
-    let committedContent = "", pushedArgs: unknown[] = [];
+    let committedContent = "", pushedArgs: unknown[] = [], syncedArgs: unknown[] = [];
     const r = await syncClaudeMdForProject(db, p.id, {
+      syncRemote: async (clone, repo, inst, branch) => { syncedArgs = [clone, repo, inst, branch]; },
       readFile: () => "", // no CLAUDE.md
       commit: (_clone, _rel, content) => { committedContent = content; return { sha: "sha1" }; },
       push: async (clone, repo, inst, branch) => { pushedArgs = [clone, repo, inst, branch]; },
@@ -107,6 +109,7 @@ test("syncClaudeMdForProject: creates + commits + pushes + bumps + emits when mi
     assert.equal(r.status, "synced");
     assert.equal(r.sha, "sha1");
     assert.match(committedContent, /THROUGHLINE:START/);
+    assert.deepEqual(syncedArgs, ["/clones/acme__repo", "acme/repo", 7, "main"]); // reconciled with remote first
     assert.deepEqual(pushedArgs, ["/clones/acme__repo", "acme/repo", 7, "main"]);
     const [ev] = await db.select().from(events).where(eq(events.type, "claude_md.synced"));
     assert.ok(ev);
@@ -122,6 +125,7 @@ test("syncClaudeMdForProject: upserts the block into an existing CLAUDE.md (sync
     const p = await seedProj(db);
     let committedContent = "";
     const r = await syncClaudeMdForProject(db, p.id, {
+      syncRemote: async () => {},
       readFile: () => "# CLAUDE.md\n\nSome notes.\n", // present, no block
       commit: (_c, _r, content) => { committedContent = content; return { sha: "s" }; },
       push: async () => {},
