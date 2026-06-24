@@ -9,6 +9,7 @@ export interface RequirementDetail {
   description: string;
   status: "planned" | "building" | "shipped";
   provenance: "imported" | "voted" | "drift";
+  diagramHtml: string | null;
   tasks: { key: string; title: string; githubStatus: "open" | "closed"; claimState: "unclaimed" | "claimed"; githubIssueUrl: string | null }[];
 }
 
@@ -16,7 +17,7 @@ export interface RequirementDetail {
 // projectId is required because key alone is ambiguous across projects.
 export async function getRequirementDetail(db: Db, projectId: string, key: string): Promise<RequirementDetail | null> {
   const [req] = await db
-    .select({ id: requirements.id, key: requirements.key, title: requirements.title, description: requirements.description, status: requirements.status, provenance: requirements.provenance })
+    .select({ id: requirements.id, key: requirements.key, title: requirements.title, description: requirements.description, status: requirements.status, provenance: requirements.provenance, diagramHtml: requirements.diagramHtml })
     .from(requirements)
     .where(and(eq(requirements.projectId, projectId), eq(requirements.key, key)))
     .limit(1);

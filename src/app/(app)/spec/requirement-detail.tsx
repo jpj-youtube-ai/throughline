@@ -3,6 +3,7 @@ import { getRequirementDetail } from "@/spec/detail";
 import { activeProjectId } from "@/project/current";
 import { Pill, Empty, type Tone } from "@/components/ui";
 import { SpecGenerate } from "./spec-generate";
+import { RequirementDiagram } from "./requirement-diagram";
 
 const STATUS_LABEL: Record<string, string> = { shipped: "shipped", building: "in progress", planned: "not started" };
 const PROV_LABEL: Record<string, string> = { imported: "genesis", voted: "voted", drift: "drift" };
@@ -23,6 +24,8 @@ export async function RequirementDetail({ reqKey }: { reqKey: string }) {
       <h2 className="font-display mt-2 text-lg font-semibold text-ink">{r.title}</h2>
       {r.description && <p className="font-serif mt-2 whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-soft">{r.description}</p>}
 
+      <RequirementDiagram reqKey={r.key} html={r.diagramHtml} />
+
       <div className="mt-5 border-t border-hairline pt-4">
         <h3 className="font-mono text-[11px] uppercase tracking-[0.18em] text-graphite">Tasks</h3>
         {r.tasks.length === 0 ? (
@@ -30,13 +33,13 @@ export async function RequirementDetail({ reqKey }: { reqKey: string }) {
         ) : (
           <ul className="mt-3 flex flex-col gap-2">
             {r.tasks.map((t) => (
-              <li key={t.key} className="flex items-center gap-2 text-[13px]">
-                <span className={`size-1.5 rounded-full ${t.githubStatus === "closed" ? "bg-shipped" : "bg-graphite"}`} />
-                <span className="font-mono text-spine-deep">{t.key}</span>
-                <span className="min-w-0 flex-1 truncate text-ink">{t.title}</span>
-                {t.claimState === "claimed" && <Pill tone="spine" dot={false}>claimed</Pill>}
+              <li key={t.key} className="flex items-start gap-2 text-[13px]">
+                <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${t.githubStatus === "closed" ? "bg-shipped" : "bg-graphite"}`} />
+                <span className="shrink-0 font-mono text-spine-deep">{t.key}</span>
+                <span className="min-w-0 flex-1 break-words text-ink">{t.title}</span>
+                {t.claimState === "claimed" && <span className="shrink-0"><Pill tone="spine" dot={false}>claimed</Pill></span>}
                 {t.githubIssueUrl && (
-                  <a href={t.githubIssueUrl} target="_blank" rel="noreferrer" className="font-mono text-[11px] text-spine-deep hover:underline">issue ↗</a>
+                  <a href={t.githubIssueUrl} target="_blank" rel="noreferrer" className="shrink-0 font-mono text-[11px] text-spine-deep hover:underline">issue ↗</a>
                 )}
               </li>
             ))}

@@ -57,6 +57,7 @@ export const requirements = pgTable("requirements", {
   key: text("key").notNull(), // REQ-NNN — unique per project (see table extras)
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
+  diagramHtml: text("diagram_html"), // derived conceptual-diagram cache (REQ-017); regenerable, no event
   status: requirementStatus("status").notNull().default("planned"),
   provenance: provenance("provenance").notNull(),
   originIdeaId: uuid("origin_idea_id").references(() => ideas.id),
