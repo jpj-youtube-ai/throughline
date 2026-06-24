@@ -1,6 +1,17 @@
+import Link from "next/link";
 import { getDb } from "@/db/client";
 import { reviewWhyQuality, type GradedRationale } from "@/quality/review";
 import { Card, Pill, Empty, buttonClass, type Tone } from "@/components/ui";
+
+/** Loading state while the (10s-ish) LLM grading pass runs — shown via Suspense on ?run=1. */
+export function WhyQualityLoading() {
+  return (
+    <Card className="flex items-center gap-3 p-5">
+      <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-hairline border-t-spine" />
+      <p className="text-sm text-graphite">Running the review — grading each recorded rationale…</p>
+    </Card>
+  );
+}
 
 function scoreTone(score: number): Tone {
   if (score >= 75) return "shipped";
@@ -16,9 +27,9 @@ export async function WhyQualityPanel({ run }: { run?: string }) {
         <p className="max-w-prose text-sm text-graphite">
           Runs an AI pass over every recorded rationale and scores it. Costs tokens, so it runs only when you ask.
         </p>
-        <a href="/why-quality?run=1" className={buttonClass("primary")}>
+        <Link href="/why-quality?run=1" className={buttonClass("primary")}>
           Run review
-        </a>
+        </Link>
       </Card>
     );
   }
@@ -28,18 +39,18 @@ export async function WhyQualityPanel({ run }: { run?: string }) {
   return (
     <>
       <div className="mb-4 flex justify-end">
-        <a href="/why-quality?run=1" className={buttonClass("quiet")}>
+        <Link href="/why-quality?run=1" className={buttonClass("quiet")}>
           Re-run
-        </a>
+        </Link>
       </div>
 
       {!review.ok ? (
         <Card className="border-l-2 border-l-risk p-5">
           <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-risk">review failed</div>
           <p className="mt-2 text-sm text-ink-soft">{review.failure}</p>
-          <a href="/why-quality?run=1" className={`${buttonClass("quiet")} mt-3`}>
+          <Link href="/why-quality?run=1" className={`${buttonClass("quiet")} mt-3`}>
             Try again
-          </a>
+          </Link>
         </Card>
       ) : review.count === 0 ? (
         <Empty title="No rationales to grade yet.">

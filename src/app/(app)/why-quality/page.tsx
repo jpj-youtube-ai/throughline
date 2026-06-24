@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { PageHeader } from "@/components/ui";
-import { WhyQualityPanel } from "./why-quality-panel";
+import { WhyQualityPanel, WhyQualityLoading } from "./why-quality-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,9 @@ export default async function WhyQualityPage({
             : "The why is the point of the log. This grades the reasoning behind each decision — clarity, specificity, a real cause — and surfaces the thin ones."
         }
       />
-      <WhyQualityPanel run={run} />
+      <Suspense key={run ?? "idle"} fallback={<WhyQualityLoading />}>
+        <WhyQualityPanel run={run} />
+      </Suspense>
     </>
   );
 }
