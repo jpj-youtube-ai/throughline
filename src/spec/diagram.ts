@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "../anthropic";
 import { extractText, extractHtml, isValidHtml } from "../preview/html";
+import { THROUGHLINE_STYLE } from "../preview/throughline-style";
 
 const MODEL_ID = "claude-sonnet-4-6";
 const MAX_HTML_BYTES = 30000;
@@ -12,14 +13,11 @@ export interface RequirementDiagramInput {
   tasks: { key: string; title: string; status: "open" | "closed" }[];
 }
 
-const SYSTEM = `You produce ONE self-contained HTML "concept diagram" that explains, for a NON-TECHNICAL reader, what a single software requirement represents — what the capability does and why it matters.
-Rules:
-- Output ONLY one HTML document. No prose, no markdown, no code fences.
-- Inline <style> only. No external resources, no <script>, no network.
-- VISUAL-FIRST and low-text: use simple shapes, boxes/arrows, icons or emoji, and at most one short real-world analogy. Prefer a diagram over paragraphs.
-- Communicate the IDEA of the requirement, not its implementation. No code, no file names, no jargon.
-- Aesthetic (ledger): light "paper" background (~#FAF8F3), dark ink text (~#1A1A1A), hairline borders (~#E5E0D8), a verdigris/teal accent (~#2E7D74). Clean modern sans for headings, a monospace for the REQ id only. Calm, lots of whitespace. Body width ~100% (max ~900px), centered. Well under 30KB.
-- Ground EVERYTHING strictly in the requirement title, description, and task list provided. Do NOT invent features, mechanisms, scope, dates, or numbers not present.`;
+const ROLE = `You produce ONE self-contained HTML "concept diagram" that explains, for a NON-TECHNICAL reader, what a single software requirement represents — what the capability does and why it matters. Be VISUAL-FIRST and low-text: simple shapes, boxes/arrows, and inline-SVG line icons, with at most one short real-world analogy — prefer a diagram over paragraphs. Communicate the IDEA of the requirement, not its implementation: no code, no file names, no jargon.`;
+
+const OUTPUT_CONTRACT = `OUTPUT: return ONLY one HTML document — no prose, no markdown, no code fences. Ground EVERYTHING strictly in the requirement title, description, and task list provided; do NOT invent features, mechanisms, scope, dates, or numbers not present. Keep it well under 30KB.`;
+
+export const SYSTEM = `${ROLE}\n\n${THROUGHLINE_STYLE}\n\n${OUTPUT_CONTRACT}`;
 
 function buildUserMessage(input: RequirementDiagramInput): string {
   const tasks = input.tasks.length
