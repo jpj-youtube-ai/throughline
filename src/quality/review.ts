@@ -93,8 +93,8 @@ const defaultGrade: GradeFn = (items) => gradeRationales({ items });
  * thin reasoning surfaces. Report-only — grades nothing into the log; the grader
  * is injectable so the merge is testable without the API.
  */
-export async function reviewWhyQuality(db: Db, grade: GradeFn = defaultGrade, limit = 40): Promise<WhyReview> {
-  const items: RationaleItem[] = (await listActivity(db, undefined, 400))
+export async function reviewWhyQuality(db: Db, projectId: string, grade: GradeFn = defaultGrade, limit = 40): Promise<WhyReview> {
+  const items: RationaleItem[] = (await listActivity(db, projectId, 400))
     .filter((it) => it.why && it.why.trim())
     .slice(0, limit)
     .map((it) => ({ id: String(it.seq), kind: it.verb, subject: it.subject, rationale: it.why as string }));

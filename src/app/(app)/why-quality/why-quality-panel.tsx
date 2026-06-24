@@ -1,17 +1,9 @@
-import Link from "next/link";
-import { getDb } from "@/db/client";
-import { reviewWhyQuality, type GradedRationale } from "@/quality/review";
-import { Card, Pill, Empty, buttonClass, type Tone } from "@/components/ui";
+"use client";
 
-/** Loading state while the (10s-ish) LLM grading pass runs — shown via Suspense on ?run=1. */
-export function WhyQualityLoading() {
-  return (
-    <Card className="flex items-center gap-3 p-5">
-      <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-hairline border-t-spine" />
-      <p className="text-sm text-graphite">Running the review — grading each recorded rationale…</p>
-    </Card>
-  );
-}
+import { useActionState } from "react";
+import { runWhyReview, type ReviewState } from "./actions";
+import { Card, Pill, Empty, buttonClass, type Tone } from "@/components/ui";
+import type { GradedRationale } from "@/quality/review";
 
 function scoreTone(score: number): Tone {
   if (score >= 75) return "shipped";
@@ -19,57 +11,56 @@ function scoreTone(score: number): Tone {
   return "risk";
 }
 
-export async function WhyQualityPanel({ run }: { run?: string }) {
-  // Cheap until asked: the LLM pass only runs on ?run=1.
-  if (run !== "1") {
-    return (
-      <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
-        <p className="max-w-prose text-sm text-graphite">
-          Runs an AI pass over every recorded rationale and scores it. Costs tokens, so it runs only when you ask.
-        </p>
-        <Link href="/why-quality?run=1" className={buttonClass("primary")}>
-          Run review
-        </Link>
-      </Card>
-    );
-  }
-
-  const review = await reviewWhyQuality(getDb());
+export function WhyQualityPanel() {
+  const [state, action, pending] = useActionState<ReviewState, FormData>(runWhyReview, null);
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <Link href="/why-quality?run=1" className={buttonClass("quiet")}>
-          Re-run
-        </Link>
-      </div>
+      <form action={action} className="mb-5">
+        <button type="submit" disabled={pending} className={buttonClass(state ? "quiet" : "primary")}>
+          {pending ? "Running…" : state ? "Re-run" : "Run review"}
+        </button>
+        {!state && !pending && (
+          <p className="mt-2 max-w-prose text-sm text-graphite">
+            Runs an AI pass over every recorded rationale and scores it. Costs tokens, so it runs only when you ask.
+          </p>
+        )}
+      </form>
 
-      {!review.ok ? (
+      {pending && (
+        <Card className="flex items-center gap-3 p-5">
+          <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-hairline border-t-spine" />
+          <p className="text-sm text-graphite">Running the review — grading each recorded rationale…</p>
+        </Card>
+      )}
+
+      {!pending && state?.ok === false && (
         <Card className="border-l-2 border-l-risk p-5">
           <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-risk">review failed</div>
-          <p className="mt-2 text-sm text-ink-soft">{review.failure}</p>
-          <Link href="/why-quality?run=1" className={`${buttonClass("quiet")} mt-3`}>
-            Try again
-          </Link>
+          <p className="mt-2 text-sm text-ink-soft">{state.failure}</p>
         </Card>
-      ) : review.count === 0 ? (
+      )}
+
+      {!pending && state?.ok === true && state.count === 0 && (
         <Empty title="No rationales to grade yet.">
           As decisions are recorded with their why, this grades the reasoning behind them.
         </Empty>
-      ) : (
+      )}
+
+      {!pending && state?.ok === true && state.count > 0 && (
         <>
           <div className="mb-7 flex flex-wrap items-end gap-10">
             <div>
-              <div className="font-display text-3xl font-bold text-ink">{review.average}</div>
+              <div className="font-display text-3xl font-bold text-ink">{state.average}</div>
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">average</div>
             </div>
             <div>
-              <div className="font-display text-3xl font-bold text-ink">{review.count}</div>
+              <div className="font-display text-3xl font-bold text-ink">{state.count}</div>
               <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">rationales graded</div>
             </div>
           </div>
           <ul className="grid gap-3">
-            {review.items.map((g) => (
+            {state.items.map((g) => (
               <RationaleCard key={g.id} g={g} />
             ))}
           </ul>
@@ -94,7 +85,7 @@ function RationaleCard({ g }: { g: GradedRationale }) {
             {g.kind}
             {g.subject ? ` · ${g.subject}` : ""}
           </div>
-          <p className="font-serif mt-1 text-[14px] italic leading-relaxed text-ink">"{g.rationale}"</p>
+          <p className="font-serif mt-1 text-[14px] italic leading-relaxed text-ink">&ldquo;{g.rationale}&rdquo;</p>
           <p className="mt-2 border-t border-hairline pt-2 text-[13px] text-graphite">{g.critique}</p>
         </div>
       </Card>
