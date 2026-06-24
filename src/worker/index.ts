@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { loadDotenv } from "../env";
 import { createDb, type Db } from "../db/client";
+import { checkLiveSchema, hasDrift, formatDrift } from "../db/check";
 import { ideas } from "../db/schema";
 import { generateForApprovedIdea, type GenerateForIdeaResult } from "../generation/orchestrate";
 import { createIssuesForTasks, type CreateIssuesResult } from "../github/issues";
@@ -104,6 +105,17 @@ export async function tick(db: Db, deps: WorkerDeps = {}): Promise<void> {
 
 async function main(): Promise<void> {
   loadDotenv();
+
+  // Boot guard: refuse to start if the live DB is behind the code's schema
+  // (a migration was generated but never applied). Fail loud and early here
+  // instead of throwing `column does not exist` on the first request.
+  const drift = await checkLiveSchema();
+  if (hasDrift(drift)) {
+    console.error(formatDrift(drift));
+    console.error("[worker] refusing to start — apply pending migration(s) (apply-migration skill), then restart.");
+    process.exit(1);
+  }
+
   const { db } = createDb();
   const intervalMs = Number(process.env.WORKER_INTERVAL_MS ?? 10000);
   console.error(`[worker] polling for approved ideas every ${intervalMs}ms…`);
