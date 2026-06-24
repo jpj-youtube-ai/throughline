@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { requirements } from "@/db/schema";
-import { generateForRequirement } from "@/generation/orchestrate";
+import { generateForRequirementKey } from "@/generation/orchestrate";
 import { createIssuesForTasks } from "@/github/issues";
 import { activeProjectId } from "@/project/current";
 import { getRequirementDetail } from "@/spec/detail";
@@ -19,16 +19,17 @@ export async function generateTasksForRequirement(_prev: GenState, formData: For
 
   const key = String(formData.get("key") ?? "");
   const db = getDb();
-  const [req] = await db.select({ id: requirements.id, projectId: requirements.projectId }).from(requirements).where(eq(requirements.key, key)).limit(1);
-  if (!req) return { ok: false, error: `Unknown requirement ${key}.` };
-
-  const r = await generateForRequirement(db, req.id);
+  // Resolve the requirement WITHIN the active project — `key` alone is ambiguous
+  // across projects (every project has its own REQ-001…), so a bare-key lookup can
+  // land on another project's same-keyed requirement (which may already have tasks).
+  const pid = await activeProjectId();
+  const r = await generateForRequirementKey(db, pid, key);
   if (!r.ok) return { ok: false, error: r.failure ?? "Generation failed." };
 
   // Open GitHub issues for the new tasks (idempotent; outside the generation tx).
-  // Pass the requirement's projectId so issues are opened on the right project's repo.
+  // Scope to the active project so issues land on the right project's repo.
   try {
-    await createIssuesForTasks(db, req.projectId);
+    await createIssuesForTasks(db, pid);
   } catch {
     // tasks are persisted; issue creation can be retried by the worker — don't fail the action.
   }

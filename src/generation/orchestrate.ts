@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { ideas, requirements, tasks, project } from "../db/schema";
 import { buildSlice, type BuildSliceOptions, type RepoSlice } from "../repoSlice";
@@ -186,4 +186,26 @@ export async function generateForRequirement(
     usage: result.usage,
   });
   return { ok: true, taskKeys };
+}
+
+/**
+ * Resolve a requirement by key WITHIN a project, then generate tasks for it.
+ * `key` alone is ambiguous across projects (every project starts at REQ-001), so
+ * callers must scope to the project they mean — otherwise the lookup can land on a
+ * different project's same-keyed requirement (which may already have tasks). Used
+ * by the spec server action with the active project id.
+ */
+export async function generateForRequirementKey(
+  db: Db,
+  projectId: string,
+  key: string,
+  opts?: { generate?: typeof GenerateTasksFn; buildSlice?: (o: BuildSliceOptions) => RepoSlice },
+): Promise<GenerateForRequirementResult> {
+  const [req] = await db
+    .select({ id: requirements.id })
+    .from(requirements)
+    .where(and(eq(requirements.projectId, projectId), eq(requirements.key, key)))
+    .limit(1);
+  if (!req) return { ok: false, failure: `unknown requirement ${key}` };
+  return generateForRequirement(db, req.id, opts);
 }

@@ -7,7 +7,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
 import { requirements, tasks, project } from "../db/schema";
-import { generateForRequirement } from "./orchestrate";
+import { generateForRequirement, generateForRequirementKey } from "./orchestrate";
 import type { GenerateTasksResult } from "./run";
 import type { generateTasks as GenerateTasksFn } from "./run";
 import type { BuildSliceOptions } from "../repoSlice";
@@ -176,6 +176,46 @@ test("generateForRequirement loads the subject requirement's project (not anothe
     fs.rmSync(dirA, { recursive: true, force: true });
     fs.rmSync(dirB, { recursive: true, force: true });
   }
+});
+
+test("generateForRequirementKey resolves the key WITHIN the given project, not another project's same key", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    // Project A (inserted first) has REQ-001 that ALREADY has a task.
+    const [pA] = await db.insert(project).values({
+      repoFullName: "acme/alpha", installationId: 10, defaultBranch: "main",
+      localClonePath: "/nonexistent-alpha", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+    }).returning({ id: project.id });
+    const [reqA] = await db.insert(requirements).values({
+      key: "REQ-001", title: "Alpha feature", description: "d", provenance: "imported", projectId: pA.id,
+    }).returning({ id: requirements.id });
+    await db.insert(tasks).values({
+      key: "TASK-001", title: "existing alpha task", body: "b", requirementId: reqA.id,
+      effort: 1, risk: "low", confidence: 50, projectId: pA.id,
+    });
+
+    // Project B (newer, the "active" one) has REQ-001 with NO tasks yet.
+    const [pB] = await db.insert(project).values({
+      repoFullName: "acme/beta", installationId: 20, defaultBranch: "main",
+      localClonePath: "/nonexistent-beta", specPath: "SPEC.md", claudeMdPath: "CLAUDE.md",
+    }).returning({ id: project.id });
+    const [reqB] = await db.insert(requirements).values({
+      key: "REQ-001", title: "Beta feature", description: "desc", provenance: "imported", projectId: pB.id,
+    }).returning({ id: requirements.id });
+
+    // Generating for project B's REQ-001 must target B (no tasks), NOT resolve to
+    // project A's REQ-001 (which already has tasks) and bail with "already has tasks".
+    const r = await generateForRequirementKey(db, pB.id, "REQ-001", { generate: fakeGenerate });
+    assert.equal(r.ok, true, `should generate for project B, got failure: ${r.failure}`);
+
+    const bRows = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.requirementId, reqB.id));
+    assert.equal(bRows.length, 1, "the new task must be linked to project B's requirement");
+
+    // A key absent from this project fails clearly — never a silent cross-project match.
+    const miss = await generateForRequirementKey(db, pB.id, "REQ-404", { generate: fakeGenerate });
+    assert.equal(miss.ok, false);
+    assert.match(miss.failure ?? "", /unknown requirement|not found/i);
+  } finally { await close(); }
 });
 
 test("generateForRequirement passes the project's context pins as the slice includes", async () => {
