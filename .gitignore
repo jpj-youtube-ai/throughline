@@ -16,3 +16,9 @@ next-env.d.ts
 
 # superpowers SDD scratch (progress ledger, briefs, review packages)
 .superpowers/
+
+# Claude Code deploy worktrees (the live web + worker run from here) — never
+# commit these; the shareable config under .claude/ (settings.json, hooks,
+# agents, skills) IS tracked.
+.claude/worktrees/
+.claire/worktrees/

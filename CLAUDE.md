@@ -31,6 +31,20 @@ Next.js (App Router) · Postgres + Drizzle · Auth.js (GitHub provider, sole sig
 - **Every task implements exactly its linked `REQ-NNN`.** Don't invent requirement ids. If work doesn't map to a requirement, that's drift — surface it, don't fold it silently into the code.
 - **Commits:** small and reviewable. One task per PR.
 
+## Process — superpowers (not optional)
+
+The `superpowers` skills are how we build here. They are load-bearing, not decoration — this is the same flow that produced every task so far, so keep dogfooding it on every non-trivial change. (User instructions still win where they conflict; truly trivial edits — a typo, a one-line copy tweak — are exempt. When in doubt, run the skill.) The `using-superpowers` skill applies at the start of every session.
+
+- **Brainstorm before building.** Any new feature, behavior change, or non-obvious fix starts with the `brainstorming` skill — settle intent and design before writing code. No jumping straight to implementation.
+- **Spec → plan → execute.** Design docs go in `docs/superpowers/specs/`, implementation plans in `docs/superpowers/plans/` (date-prefixed `YYYY-MM-DD-<slug>`, like the existing ones). Use `writing-plans`, then `executing-plans`. Brainstorm/SDD scratch lives in `.superpowers/` (gitignored).
+- **TDD for implementation.** `test-driven-development` — failing test first, then the code. Register every new `*.test.ts` in the `test` script in `package.json` (it's enumerated, not globbed — an unregistered test is silently skipped).
+- **Systematic debugging for bugs.** `systematic-debugging` before proposing any fix — find the root cause; don't pattern-match a patch.
+- **Review before merge.** `requesting-code-review` when a task is done, and run the `event-integrity-reviewer` agent on anything that touches state, events, the schema, or generation. Apply `receiving-code-review` rigor to feedback — verify, don't just agree.
+- **Verify before claiming done.** `verification-before-completion` — actually run `npm test`, `npm run typecheck`, and `npm run build`, and show the output before saying it passes. Evidence before assertions, always.
+- **Isolate risky work.** Use `using-git-worktrees` when work needs isolation from the running deploy (the live web + worker run from a worktree — see project memory).
+
+The whole loop, end to end: brainstorm → spec/plan → TDD → `task-<key>-<slug>` branch → review (incl. `event-integrity-reviewer`) → verify → `[TASK-NNN]` squash-merge.
+
 ## Build order — hold the line
 
 `SPEC.md` describes the **whole** system (27 requirements). That is the destination, not the next commit. Build in this order and do not scaffold ahead of it:
