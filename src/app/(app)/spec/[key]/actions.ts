@@ -6,7 +6,6 @@ import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { requirements } from "@/db/schema";
 import { generateForRequirementKey } from "@/generation/orchestrate";
-import { createIssuesForTasks } from "@/github/issues";
 import { activeProjectId } from "@/project/current";
 import { getRequirementDetail } from "@/spec/detail";
 import { generateRequirementDiagramHtml } from "@/spec/diagram";
@@ -26,13 +25,12 @@ export async function generateTasksForRequirement(_prev: GenState, formData: For
   const r = await generateForRequirementKey(db, pid, key);
   if (!r.ok) return { ok: false, error: r.failure ?? "Generation failed." };
 
-  // Open GitHub issues for the new tasks (idempotent; outside the generation tx).
-  // Scope to the active project so issues land on the right project's repo.
-  try {
-    await createIssuesForTasks(db, pid);
-  } catch {
-    // tasks are persisted; issue creation can be retried by the worker — don't fail the action.
-  }
+  // Issue creation (and previews) is the WORKER's job: every tick it opens an issue
+  // for each task without one (REQ-009). The action must NOT also create issues — it
+  // would race the worker (both see the new tasks with github_issue_number IS NULL and
+  // each opens one → duplicate issues, observed for NBCC). The worker picks these tasks
+  // up within one tick. Keeping this slow, external work off the request path also means
+  // the action returns as soon as tasks are persisted.
 
   revalidatePath("/spec");
   revalidatePath("/dashboard");
