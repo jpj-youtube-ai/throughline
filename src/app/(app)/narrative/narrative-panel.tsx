@@ -14,11 +14,13 @@ export async function NarrativePanel() {
         <Empty title="No narrative yet.">Generate one and the project&apos;s history is written from the event log.</Empty>
       ) : (
         <>
-          {n.roadmapImage && (
-            <img
-              src={`data:image/png;base64,${n.roadmapImage.toString("base64")}`}
-              alt="Project roadmap — journey and what's next"
-              className="mb-8 w-full rounded-lg border border-hairline"
+          {n.roadmapHtml && (
+            <iframe
+              title="Project roadmap — journey and what's next"
+              sandbox=""
+              srcDoc={n.roadmapHtml}
+              className="mb-8 w-full rounded-lg border border-hairline bg-paper"
+              style={{ height: 820 }}
             />
           )}
           <article className="spine flex flex-col gap-8">

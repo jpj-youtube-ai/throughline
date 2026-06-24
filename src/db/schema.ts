@@ -150,6 +150,5 @@ export const narratives = pgTable("narratives", {
   eventCount: integer("event_count").notNull(),
   content: jsonb("content").$type<unknown>().notNull(),
   roadmapHtml: text("roadmap_html"),
-  roadmapImage: bytea("roadmap_image"),
   projectId: uuid("project_id").notNull().references(() => project.id),
 });

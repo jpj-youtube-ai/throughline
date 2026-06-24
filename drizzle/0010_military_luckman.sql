@@ -1,0 +1,1 @@
+ALTER TABLE "narratives" DROP COLUMN "roadmap_image";

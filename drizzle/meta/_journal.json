@@ -71,6 +71,13 @@
       "when": 1782251516331,
       "tag": "0009_broken_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1782278135695,
+      "tag": "0010_military_luckman",
+      "breakpoints": true
     }
   ]
 }

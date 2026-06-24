@@ -78,57 +78,54 @@ test("materializeNarrative builds a grounded digest, stores chapters, emits narr
   }
 });
 
-test("materializeNarrative stores a roadmap image when generation succeeds", async () => {
+test("materializeNarrative stores roadmap_html when generation succeeds", async () => {
   const { db, close } = await createTestDb();
   try {
-    const ctx = await seedNarratableProject(db); // returns { projectId }
+    const ctx = await seedNarratableProject(db);
     await db.insert(requirements).values({ key: "REQ-001", title: "Event log", description: "d", provenance: "imported", status: "shipped", projectId: ctx.projectId });
     let roadmapInput: unknown = null;
     const r = await materializeNarrative(
       db,
       async () => ({ ok: true, content: { chapters: [{ heading: "H", prose: "p", refs: [] }] } }),
-      {
-        generateRoadmap: async (input) => { roadmapInput = input; return "<html><body>roadmap</body></html>"; },
-        renderPng: async () => Buffer.from([0x89, 0x50, 0x4e, 0x47, 1]),
-      },
+      { generateRoadmap: async (input) => { roadmapInput = input; return "<html><body>roadmap</body></html>"; } },
     );
     assert.ok(r.eventCount > 0);
-    const [n] = await db.select({ img: narratives.roadmapImage, html: narratives.roadmapHtml }).from(narratives);
-    assert.ok(n.img && n.html, "roadmap stored");
-    assert.ok(roadmapInput && (roadmapInput as { requirements: unknown[] }).requirements.length === 1, "real requirements passed to the roadmap");
+    const [n] = await db.select({ html: narratives.roadmapHtml }).from(narratives);
+    assert.equal(n.html, "<html><body>roadmap</body></html>");
+    assert.ok(roadmapInput && (roadmapInput as { requirements: unknown[] }).requirements.length === 1, "real requirements passed");
     const evs = await db.select().from(events).where(eq(events.type, "narrative.generated"));
     assert.equal(evs.length, 1);
   } finally { await close(); }
 });
 
-test("materializeNarrative still stores the narrative when the roadmap fails", async () => {
+test("materializeNarrative still stores the narrative when the roadmap returns null", async () => {
   const { db, close } = await createTestDb();
   try {
     const ctx = await seedNarratableProject(db);
     const r = await materializeNarrative(
       db,
       async () => ({ ok: true, content: { chapters: [{ heading: "H", prose: "p", refs: [] }] } }),
-      { generateRoadmap: async () => null, renderPng: async () => { throw new Error("should not run"); } },
+      { generateRoadmap: async () => null },
     );
     assert.ok(r.eventCount > 0);
-    const [n] = await db.select({ img: narratives.roadmapImage }).from(narratives);
-    assert.equal(n.img, null, "no image stored");
+    const [n] = await db.select({ html: narratives.roadmapHtml }).from(narratives);
+    assert.equal(n.html, null);
     const evs = await db.select().from(events).where(eq(events.type, "narrative.generated"));
     assert.equal(evs.length, 1, "narrative still generated");
   } finally { await close(); }
 });
 
-test("materializeNarrative still stores the narrative when render throws", async () => {
+test("materializeNarrative still stores the narrative when the roadmap generator throws", async () => {
   const { db, close } = await createTestDb();
   try {
     const ctx = await seedNarratableProject(db);
     const r = await materializeNarrative(
       db,
       async () => ({ ok: true, content: { chapters: [{ heading: "H", prose: "p", refs: [] }] } }),
-      { generateRoadmap: async () => "<html><body>x</body></html>", renderPng: async () => { throw new Error("chromium boom"); } },
+      { generateRoadmap: async () => { throw new Error("roadmap boom"); } },
     );
     assert.ok(r.eventCount > 0);
-    const [n] = await db.select({ img: narratives.roadmapImage }).from(narratives);
-    assert.equal(n.img, null);
+    const [n] = await db.select({ html: narratives.roadmapHtml }).from(narratives);
+    assert.equal(n.html, null);
   } finally { await close(); }
 });

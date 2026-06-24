@@ -24,7 +24,9 @@ Rules:
   a verdigris/teal accent (~#2E7D74) for the spine; clean modern sans headings, a monospace for small
   labels/keys (REQ ids). Calm, lots of whitespace, ~1100px wide. Well under 30KB.
 - Ground EVERY milestone in the data given: the chapters are the journey; the requirements are the real
-  status. Do NOT invent phases, dates, or features not present. Keep labels short.`;
+  status. Do NOT invent phases, dates, or features not present. Keep labels short.
+- Keep it COMPACT and WIDE so it reads without much vertical scrolling: lay the phases out left-to-right,
+  fit comfortably within roughly a 1000x800 area, and set the body width to ~100% (max ~1100px).`;
 
 function buildUserMessage(input: RoadmapInput): string {
   const chapters = input.chapters.map((c, i) => `${i + 1}. ${c.heading} — ${c.prose}`).join("\n");
