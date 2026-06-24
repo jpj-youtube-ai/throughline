@@ -45,6 +45,15 @@ The `superpowers` skills are how we build here. They are load-bearing, not decor
 
 The whole loop, end to end: brainstorm → spec/plan → TDD → `task-<key>-<slug>` branch → review (incl. `event-integrity-reviewer`) → verify → `[TASK-NNN]` squash-merge.
 
+## Design tooling — for UI work (Surface layer)
+
+Two plugins are installed and enabled for frontend/UI work. Reach for them on any Surface-layer `[3]` task or other change that touches the look and feel — not on backend, event-log, schema, or generation work.
+
+- **`impeccable`** (`pbakaus/impeccable`) — design fluency for frontend. A single skill plus ~23 `/impeccable <verb>` commands (`polish`, `audit`, `critique`, `shape`, `clarify`, `distill`, `harden`, `layout`, `typeset`, `colorize`, `animate`, `delight`, `bolder`, `quieter`, `optimize`, `live`, …). Use to critique, polish, or shape an interface and to catch anti-patterns. `/impeccable live` for in-browser iteration.
+- **`ui-ux-pro-max`** — UI/UX design intelligence: 50+ styles, 160+ color palettes, font pairings, per-product-type UX guidelines, and chart guidance. Use to plan, build, review, or improve UI and to ground choices in palettes/typography/layout that aren't templated defaults.
+
+**These serve the existing design system; they don't override it.** Throughline already has an opinionated Surface-layer aesthetic — the verdigris ledger look, Archivo/Plex type, defined tokens and primitives (see project memory `design-system.md`). Use the plugins to execute and pressure-test *within* that system; don't let them swap in a generic palette or restyle established components. When their suggestion conflicts with the ledger aesthetic, the design system wins.
+
 ## Build order — hold the line
 
 `SPEC.md` describes the **whole** system (27 requirements). That is the destination, not the next commit. Build in this order and do not scaffold ahead of it:

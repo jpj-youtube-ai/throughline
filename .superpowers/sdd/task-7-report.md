@@ -1,37 +1,54 @@
-# Task 7 Report — Finalize: NOT NULL, per-project key uniques, required emitEvent.projectId
+# Task 7 Report — RequirementDiagram component + wire-up
 
-## Files modified
+## What changed
 
-**Schema:**
-- `src/db/schema.ts` — added `.notNull()` to `projectId` on requirements, ideas, tasks, events, narratives; dropped `.unique()` on `requirements.key` and `tasks.key`; added table-level composites `requirements_project_key_unique(project_id, key)` and `tasks_project_key_unique(project_id, key)`.
-- `src/db/events.ts` — `EmitEventInput.projectId` changed from `string?` to `string`; insert drops `?? null`.
+### Created
+- `src/app/(app)/spec/requirement-diagram.tsx` — new `"use client"` component `RequirementDiagram({ reqKey, html })` that:
+  - Uses `useActionState<DiagramState, FormData>(generateRequirementDiagram, null)` from `./[key]/actions`
+  - Prefers freshly-returned `state.html` over the stored prop via `const shown = (state?.ok === true ? state.html : null) ?? html`
+  - Renders `<HtmlFrame>` when a diagram is available (from `@/components/html-frame`)
+  - Shows "Generate diagram" (primary) or "Regenerate diagram" (quiet) button via `buttonClass("primary" | "quiet")`
+  - Shows inline error on `state?.ok === false`
 
-**Migration:**
-- `drizzle/0005_hesitant_norman_osborn.sql` — drops `requirements_key_unique` + `tasks_key_unique`; SET NOT NULL on 5 columns; adds the two composite uniques. Replays correctly after 0004's backfill.
+### Modified
+- `src/app/(app)/spec/requirement-detail.tsx` — added import and placed `<RequirementDiagram reqKey={r.key} html={r.diagramHtml} />` between the description `<p>` and the Tasks `<div className="mt-5 border-t border-hairline pt-4">`. Both the full `/spec/[key]` page and the drawer render `RequirementDetail`, so both paths get the diagram.
 
-**Source callers fixed for required projectId:**
-- `src/genesis/import.ts` — `importGenesisSpec(db, specText, filename, projectId: string)` now requires a real projectId; `main()` resolves it via `getActiveProjectId(db, null)`.
-- `src/spec/materialize.ts` — removed `.catch(() => undefined)` from `getActiveProjectId`; throws if no project.
-- `src/narrative/materialize.ts` — same pattern.
-- `src/drift/flag.ts` — `resolveDrift` throws if `flaggedTask.projectId` is null; both `requirement.declared` and `drift.resolved` emitEvent calls now pass `projectId`.
-- `src/work/retroactive.ts` — resolves `projectId` from the task row (falls back to oldest project); passes it to emitEvent.
-- `src/project/bind.ts` — `project.bound` emitEvent now passes `projectId: row.id`.
-- `src/requirements/declare.ts` — throws if project not found; passes `projectId: string` to emitEvent.
-- `src/app/(app)/spec/actions.ts` — resolves `getActiveProjectId` before calling `importGenesisSpec`.
+## Typecheck output
 
-**Test files updated** (seeded a project row + pass projectId to all inserts/emitEvent):
-- `src/db/events.test.ts`, `src/digest/queries.test.ts`, `src/digest/send.test.ts`, `src/events/feed.test.ts`, `src/generation/orchestrate-requirement.test.ts`, `src/generation/persist-requirement.test.ts`, `src/generation/persist.test.ts`, `src/spec/materialize.test.ts`, `src/tasks/claim.test.ts`, `src/work/retroactive.test.ts`, `src/requirements/lifecycle.test.ts`
+```
+> throughline-generate@0.0.1 typecheck
+> tsc --noEmit
+```
+No errors. Exit 0.
 
-**New test:**
-- `src/db/multiproject-schema.test.ts` — added `"REQ/TASK keys are unique per project, not globally"` test (failed before migration, passes after).
+## Placement confirmation
 
-## Results
+Inserted immediately after:
+```tsx
+{r.description && <p className="font-serif mt-2 whitespace-pre-wrap text-[13.5px] leading-relaxed text-ink-soft">{r.description}</p>}
+```
+And before:
+```tsx
+<div className="mt-5 border-t border-hairline pt-4">
+  <h3 className="font-mono text-[11px] uppercase tracking-[0.18em] text-graphite">Tasks</h3>
+```
 
-- Full suite: **122 pass / 0 fail**
-- `npm run typecheck`: clean (0 errors)
-- `npm run build`: succeeded
-- Migration filename: `drizzle/0005_hesitant_norman_osborn.sql`
+## Self-review checklist
 
-## Concerns
+- [x] `shown` prefers `state.html` (fresh generation) then falls back to `html` prop (stored)
+- [x] Button variants are `"primary"` and `"quiet"` — both are valid per `buttonClass` signature
+- [x] Placed before Tasks section, after description
+- [x] Drawer path gets it via `RequirementDetail` (same component, both page and drawer render it)
+- [x] No `any` in domain code
+- [x] Only two files staged and committed
 
-None. The backfill in 0004 ensures all existing rows have `project_id` set before 0005 enforces NOT NULL. The per-project unique constraints replace the previous global uniques cleanly.
+## Files changed
+
+- `src/app/(app)/spec/requirement-diagram.tsx` (created, 33 lines)
+- `src/app/(app)/spec/requirement-detail.tsx` (modified, +3 lines)
+
+## Commit
+
+SHA: `81c6742`
+Subject: `feat(spec): inline requirement diagram with generate/regenerate (REQ-017)`
+Branch: `task-059-requirement-diagram`

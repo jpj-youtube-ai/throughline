@@ -3,14 +3,12 @@
 **Date:** 2026-06-24
 **Status:** approved (brainstorming), pending implementation plan
 **Layer:** Surface `[3]` — restyles the two LLM→HTML explainer graphics to the Throughline design system.
-**Tasks:** TASK-060 · **Requirement:** REQ-017 (Spec map / requirement diagram) — introduces the shared brief
-&nbsp;&nbsp;&nbsp;&nbsp;TASK-061 · **Requirement:** REQ-009 (issue creation) — issue-preview explainer consumes the brief
+**Task:** TASK-060 · **Requirements:** REQ-017 (Spec map / requirement diagram) + REQ-009 (issue creation)
 
-> **Cross-REQ note (surfaced, not folded):** this is one cohesive design change that lands across two
-> existing requirements. Per CLAUDE.md ("one task per PR; every task implements exactly its linked REQ"),
-> it is split into two tasks/PRs that share this single design doc. TASK-060 (REQ-017) is built first
-> because it creates the shared brief module; TASK-061 (REQ-009) then consumes it. *Pending user sign-off
-> on the split at the spec-review gate.*
+> **Cross-REQ note (surfaced, decided):** this is one cohesive design change that lands across two
+> existing requirements. CLAUDE.md prefers one task per REQ; the user explicitly chose to do it as a
+> **single combined task/PR (TASK-060)** covering both REQ-017 and REQ-009 — a deliberate, approved
+> deviation. The PR body links both requirements.
 
 ## Problem
 
@@ -130,11 +128,9 @@ retry, reject output over the byte cap, and never persist partial output. The br
   script — TASK-060):
   - `THROUGHLINE_STYLE` contains the core tokens (`#2E7D6B`, `#ECEAE3`, `#1A1D2E`, `ui-monospace`).
   - It states the emoji ban (asserts on the "No emoji" / no-raster directive).
-  - The requirement-diagram `SYSTEM` (from `spec/diagram.ts`) includes `THROUGHLINE_STYLE`.
-  - **Extended in TASK-061:** the issue-preview `SYSTEM` (from `preview/generate.ts`) also includes
-    `THROUGHLINE_STYLE` — added once that generator is restyled (it isn't composed from the brief until
-    then). Together the two assertions guard the composition so a future edit can't silently drop the
-    shared brief from either prompt.
+  - **Both** generators' exported `SYSTEM` (`spec/diagram.ts` and `preview/generate.ts`) include
+    `THROUGHLINE_STYLE` — guards the composition so a future edit can't silently drop the shared brief
+    from either prompt.
 - **Existing `src/spec/diagram.test.ts`** and the preview tests use a mocked Anthropic client and assert
   *behavior* (valid output returned, malformed→retry→`null`, over-cap→`null`), not prompt text — expected
   to stay green; confirm in the verify step.
@@ -143,20 +139,14 @@ retry, reject output over the byte cap, and never persist partial output. The br
 
 ## Ops / dogfood
 
-- **TASK-060** `[REQ-017]` — branch `task-060-ledger-requirement-diagram`; squash title `[TASK-060] …`.
-  Creates `throughline-style.ts` (+ test), restyles `spec/diagram.ts`, registers the test in
-  `package.json`. Verify `npm test` / `npm run typecheck` / `npm run build`.
-- **TASK-061** `[REQ-009]` — branch `task-061-ledger-issue-preview`; squash title `[TASK-061] …`.
-  Restyles `preview/generate.ts` to import the brief. Depends on TASK-060 (the brief module).
+- **TASK-060** (covers `[REQ-017]` + `[REQ-009]`) — branch `task-060-ledger-explainer-graphics`; squash
+  title `[TASK-060] …`; PR body links both REQ-017 and REQ-009. One combined task/PR (user-approved
+  deviation from one-task-per-REQ). Verify `npm test` / `npm run typecheck` / `npm run build`.
 - No migration, no SPEC.md/materialize step (both are existing requirements), no event.
 
-## Files touched
+## Files touched (TASK-060)
 
-**TASK-060 (REQ-017):**
 - `src/preview/throughline-style.ts` (new) · `src/preview/throughline-style.test.ts` (new)
 - `src/spec/diagram.ts` (recompose + export `SYSTEM`)
-- `package.json` (register the new test)
-
-**TASK-061 (REQ-009):**
 - `src/preview/generate.ts` (recompose + export `SYSTEM`)
-- `src/preview/throughline-style.test.ts` (extend: assert `generate.ts` `SYSTEM` includes the brief)
+- `package.json` (register the new test)
