@@ -3,6 +3,7 @@ import { getLatestNarrative } from "@/narrative/queries";
 import { Empty, buttonClass } from "@/components/ui";
 import { regenerate } from "./actions";
 import { activeProjectId } from "@/project/current";
+import { RoadmapFrame } from "./roadmap-frame";
 
 export async function NarrativePanel() {
   const pid = await activeProjectId();
@@ -14,15 +15,7 @@ export async function NarrativePanel() {
         <Empty title="No narrative yet.">Generate one and the project&apos;s history is written from the event log.</Empty>
       ) : (
         <>
-          {n.roadmapHtml && (
-            <iframe
-              title="Project roadmap — journey and what's next"
-              sandbox=""
-              srcDoc={n.roadmapHtml}
-              className="mb-8 w-full rounded-lg border border-hairline bg-paper"
-              style={{ height: 820 }}
-            />
-          )}
+          {n.roadmapHtml && <RoadmapFrame html={n.roadmapHtml} />}
           <article className="spine flex flex-col gap-8">
           {n.content.chapters.map((c, i) => (
             <section key={i} className="spine-node">
