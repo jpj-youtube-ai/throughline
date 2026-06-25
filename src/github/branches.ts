@@ -3,6 +3,9 @@ import type { Db } from "../db/client";
 import { tasks, project } from "../db/schema";
 import { getInstallationOctokit, commentOnIssue } from "./app";
 import { listProjects } from "../project/list";
+import { loadTaskPrototypes } from "../prototypes/store";
+import { slugify } from "../prototypes/slug";
+import { commitFileToBranch } from "./contents";
 
 // The slice of the octokit git API we use — typed so domain code needs no `any`
 // and tests can supply an honest fake.
@@ -21,6 +24,17 @@ export type CreateBranchFn = (
   branchName: string,
   baseBranch: string,
 ) => Promise<{ created: boolean }>;
+
+export type CommitPrototypesFn = (
+  db: Db, installationId: number, repoFullName: string, branch: string, taskId: string,
+) => Promise<void>;
+
+export const commitTaskPrototypes: CommitPrototypesFn = async (db, installationId, repoFullName, branch, taskId) => {
+  const protos = await loadTaskPrototypes(db, taskId);
+  for (const p of protos) {
+    await commitFileToBranch(installationId, repoFullName, branch, `prototypes/${slugify(p.label)}.html`, p.html, `[design] prototype "${p.label}" for the task on this branch`);
+  }
+};
 
 export type CommentOnIssueFn = (
   installationId: number,
@@ -81,6 +95,7 @@ export async function createBranchesForClaimedTasks(
   projectId?: string,
   createBranchFn: CreateBranchFn = createBranch,
   commentOnIssueFn: CommentOnIssueFn = commentOnIssue,
+  commitPrototypesFn: CommitPrototypesFn = commitTaskPrototypes,
 ): Promise<{ created: string[] }> {
   let resolvedProjectId: string;
   if (projectId) {
@@ -103,6 +118,11 @@ export async function createBranchesForClaimedTasks(
   for (const t of pending) {
     if (!t.branchName) continue; // narrow; WHERE already excludes nulls
     await createBranchFn(proj.installationId, proj.repoFullName, t.branchName, proj.defaultBranch);
+    try {
+      await commitPrototypesFn(db, proj.installationId, proj.repoFullName, t.branchName, t.id);
+    } catch (e) {
+      console.error(`[branches] prototype commit skipped for ${t.key}:`, e instanceof Error ? e.message : e);
+    }
     if (t.githubIssueNumber != null) {
       await commentOnIssueFn(
         proj.installationId,
