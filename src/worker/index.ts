@@ -4,7 +4,7 @@ import { createDb, type Db } from "../db/client";
 import { checkLiveSchema, hasDrift, formatDrift } from "../db/check";
 import { ideas } from "../db/schema";
 import { generateForApprovedIdea, type GenerateForIdeaResult } from "../generation/orchestrate";
-import { createIssuesForTasks, type CreateIssuesResult } from "../github/issues";
+import { createIssuesForTasks, closeIssuesForMergedTasks, type CreateIssuesResult, type CloseIssuesResult } from "../github/issues";
 import { createBranchesForClaimedTasks } from "../github/branches";
 import { materializeSpec, type MaterializeResult } from "../spec/materialize";
 import { generateDigest, type GenerateResult } from "../digest/send";
@@ -16,6 +16,7 @@ export interface WorkerDeps {
   generate?: (db: Db, ideaId: string) => Promise<GenerateForIdeaResult>;
   createIssues?: (db: Db, projectId: string) => Promise<CreateIssuesResult>;
   createBranches?: (db: Db, projectId: string) => Promise<{ created: string[] }>;
+  closeIssues?: (db: Db, projectId: string) => Promise<CloseIssuesResult>;
   specMaterialize?: (db: Db, projectId: string) => Promise<MaterializeResult>;
   digest?: (db: Db, opts: { projectId: string }) => Promise<GenerateResult>;
 }
@@ -35,6 +36,7 @@ export async function tickForProject(
     generate = generateForApprovedIdea,
     createIssues = (d, pid) => createIssuesForTasks(d, pid),
     createBranches = (d, pid) => createBranchesForClaimedTasks(d, pid),
+    closeIssues = (d, pid) => closeIssuesForMergedTasks(d, pid),
     specMaterialize = (d, pid) => materializeSpec(d, pid),
     digest = (d, opts) => generateDigest(d, opts),
   } = deps;
@@ -72,6 +74,15 @@ export async function tickForProject(
     if (created.length) console.error(`[worker][${proj.id}] created ${created.length} branch(es): ${created.join(", ")}`);
   } catch (e) {
     console.error(`[worker][${proj.id}] branch creation skipped:`, formatError(e));
+  }
+
+  // Close GitHub issues for tasks whose PR merged (REQ-009). Outbound + idempotent;
+  // the issue_closed_at marker bounds this to once per task and lets it self-heal.
+  try {
+    const { closed } = await closeIssues(db, proj.id);
+    if (closed.length) console.error(`[worker][${proj.id}] closed ${closed.length} issue(s): ${closed.join(", ")}`);
+  } catch (e) {
+    console.error(`[worker][${proj.id}] issue close skipped:`, formatError(e));
   }
 
   // Re-materialize the spec for this project when requirements/tasks changed (REQ-012).
