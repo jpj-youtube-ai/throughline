@@ -31,7 +31,7 @@ export function PrototypeUploadForm() {
         <button type="submit" disabled={pending} className={`${buttonClass("primary")} justify-self-start`}>
           {pending ? "Uploading…" : "Upload prototype"}
         </button>
-        {state?.ok === true && (
+        {!pending && state?.ok === true && (
           <span className="font-mono text-[12px] text-shipped">Uploaded — rendering in background.</span>
         )}
         {state?.ok === false && (
