@@ -40,6 +40,7 @@ test("tick iterates all projects: approved ideas from each project are generated
 
     const generated: Array<{ db: Db; ideaId: string }> = [];
     const deps: WorkerDeps = {
+      refreshClone: async () => {},
       generate: async (d, ideaId) => {
         generated.push({ db: d, ideaId });
         return { ok: true, taskKeys: ["TASK-001"] };
@@ -80,6 +81,7 @@ test("tick scopes approved-idea query per project: an idea from project A is not
     // Since tick iterates projects in order, we spy on the generate calls and match ideaId
     // against the DB to confirm the idea belongs to projA (not projB).
     const deps: WorkerDeps = {
+      refreshClone: async () => {},
       generate: async (d, ideaId) => {
         // Verify the idea belongs to project A
         const [idea] = await d.select({ projectId: ideas.projectId }).from(ideas).where(
@@ -119,6 +121,7 @@ test("tick per-project: a step failure in one project does not abort processing 
     let firstCall = true;
 
     const deps: WorkerDeps = {
+      refreshClone: async () => {},
       generate: async (_d, ideaId) => {
         if (firstCall) {
           firstCall = false;
@@ -153,6 +156,7 @@ test("tick runs the close-issues sweep per project, and a failure in it does not
 
     const closeCalls: string[] = [];
     const deps: WorkerDeps = {
+      refreshClone: async () => {},
       generate: async () => ({ ok: true, taskKeys: [] }),
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
@@ -167,6 +171,37 @@ test("tick runs the close-issues sweep per project, and a failure in it does not
     // The thrown error from closeIssues must be caught inside the step.
     await assert.doesNotReject(() => tick(db, deps));
     assert.deepEqual(closeCalls, [projAId], "close sweep invoked for the project");
+  } finally {
+    await close();
+  }
+});
+
+test("tick refreshes each project's clone before generating; a refresh failure does not abort the tick", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const userId = await makeUser(db);
+    const projAId = await seedProject(db, "acme/repo-a");
+    await seedApprovedIdea(db, projAId, userId, "Idea A");
+
+    const order: string[] = [];
+    const deps: WorkerDeps = {
+      refreshClone: async (_d, pid) => {
+        order.push(`refresh:${pid}`);
+        throw new Error("pull boom");
+      },
+      generate: async () => {
+        order.push("generate");
+        return { ok: true, taskKeys: [] };
+      },
+      createIssues: async () => ({ created: [] }),
+      createBranches: async () => ({ created: [] }),
+      closeIssues: async () => ({ closed: [] }),
+      specMaterialize: async () => ({ requirementCount: 0, sha: "abc1234" }),
+      digest: async () => ({ generated: false, reason: "nothing new" }),
+    };
+
+    await assert.doesNotReject(() => tick(db, deps));
+    assert.deepEqual(order, [`refresh:${projAId}`, "generate"], "refresh runs before generation; its failure is isolated");
   } finally {
     await close();
   }

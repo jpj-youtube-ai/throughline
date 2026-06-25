@@ -9,10 +9,12 @@ import { createBranchesForClaimedTasks } from "../github/branches";
 import { materializeSpec, type MaterializeResult } from "../spec/materialize";
 import { generateDigest, type GenerateResult } from "../digest/send";
 import { listProjects } from "../project/list";
+import { refreshProjectClone } from "../project/refresh";
 import { formatError } from "./format-error";
 
 // Injectable overrides — used in tests to avoid hitting external services.
 export interface WorkerDeps {
+  refreshClone?: (db: Db, projectId: string) => Promise<void>;
   generate?: (db: Db, ideaId: string) => Promise<GenerateForIdeaResult>;
   createIssues?: (db: Db, projectId: string) => Promise<CreateIssuesResult>;
   createBranches?: (db: Db, projectId: string) => Promise<{ created: string[] }>;
@@ -33,6 +35,7 @@ export async function tickForProject(
   deps: WorkerDeps = {},
 ): Promise<{ didGenerate: boolean }> {
   const {
+    refreshClone = refreshProjectClone,
     generate = generateForApprovedIdea,
     createIssues = (d, pid) => createIssuesForTasks(d, pid),
     createBranches = (d, pid) => createBranchesForClaimedTasks(d, pid),
@@ -40,6 +43,15 @@ export async function tickForProject(
     specMaterialize = (d, pid) => materializeSpec(d, pid),
     digest = (d, opts) => generateDigest(d, opts),
   } = deps;
+
+  // Refresh the project's local clone so generation sees the latest merged code
+  // (REQ-008) — a stale slice/spec/git-log makes the model re-propose already-done
+  // work. Best-effort: a pull failure must not block the tick.
+  try {
+    await refreshClone(db, proj.id);
+  } catch (e) {
+    console.error(`[worker][${proj.id}] clone refresh skipped:`, formatError(e));
+  }
 
   let didGenerate = false;
 
