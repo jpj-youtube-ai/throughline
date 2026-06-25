@@ -11,6 +11,7 @@ import { generateDigest, type GenerateResult } from "../digest/send";
 import { listProjects } from "../project/list";
 import { refreshProjectClone } from "../project/refresh";
 import { formatError } from "./format-error";
+import { renderPrototypeImages } from "../prototypes/render";
 
 // Injectable overrides — used in tests to avoid hitting external services.
 export interface WorkerDeps {
@@ -19,6 +20,7 @@ export interface WorkerDeps {
   createIssues?: (db: Db, projectId: string) => Promise<CreateIssuesResult>;
   createBranches?: (db: Db, projectId: string) => Promise<{ created: string[] }>;
   closeIssues?: (db: Db, projectId: string) => Promise<CloseIssuesResult>;
+  renderPrototypes?: (db: Db, projectId: string) => Promise<{ rendered: string[] }>;
   specMaterialize?: (db: Db, projectId: string) => Promise<MaterializeResult>;
   digest?: (db: Db, opts: { projectId: string }) => Promise<GenerateResult>;
 }
@@ -40,6 +42,7 @@ export async function tickForProject(
     createIssues = (d, pid) => createIssuesForTasks(d, pid),
     createBranches = (d, pid) => createBranchesForClaimedTasks(d, pid),
     closeIssues = (d, pid) => closeIssuesForMergedTasks(d, pid),
+    renderPrototypes = (d, pid) => renderPrototypeImages(d, pid),
     specMaterialize = (d, pid) => materializeSpec(d, pid),
     digest = (d, opts) => generateDigest(d, opts),
   } = deps;
@@ -95,6 +98,15 @@ export async function tickForProject(
     if (closed.length) console.error(`[worker][${proj.id}] closed ${closed.length} issue(s): ${closed.join(", ")}`);
   } catch (e) {
     console.error(`[worker][${proj.id}] issue close skipped:`, formatError(e));
+  }
+
+  // Render any newly-uploaded design prototypes to PNG (REQ-030) — Puppeteer, off
+  // the web request path. Best-effort; a failure never aborts the tick.
+  try {
+    const { rendered } = await renderPrototypes(db, proj.id);
+    if (rendered.length) console.error(`[worker][${proj.id}] rendered ${rendered.length} prototype(s)`);
+  } catch (e) {
+    console.error(`[worker][${proj.id}] prototype render skipped:`, formatError(e));
   }
 
   // Re-materialize the spec every tick (REQ-012). materializeSpec is a cheap no-op
