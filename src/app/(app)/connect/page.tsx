@@ -143,8 +143,15 @@ export default async function ConnectPage() {
         </section>
       )}
 
-      {/* Design prototypes */}
-      <DesignPrototypes />
+      {/* Design prototypes — per bound repo */}
+      {boundProjects.length > 0 && (
+        <section className="mb-6">
+          <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">Design prototypes</div>
+          {boundProjects.map((p) => (
+            <DesignPrototypes key={p.id} projectId={p.id} repoFullName={p.repoFullName} />
+          ))}
+        </section>
+      )}
 
       {/* Available repos to bind */}
       <section>

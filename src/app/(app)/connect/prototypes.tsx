@@ -1,27 +1,25 @@
 // src/app/(app)/connect/prototypes.tsx
 // Server component (listing) + inline client upload form (REQ-030)
 import { getDb } from "@/db/client";
-import { activeProjectId } from "@/project/current";
 import { listProjectPrototypes } from "@/prototypes/store";
 import { Card, Empty, Field, buttonClass, fieldClass } from "@/components/ui";
 import { PrototypeUploadForm } from "./prototype-upload-form";
 import { removePrototypeAction } from "./actions";
 
-export async function DesignPrototypes() {
+export async function DesignPrototypes({ projectId, repoFullName }: { projectId: string; repoFullName: string }) {
   const db = getDb();
-  const pid = await activeProjectId();
-  const protos = await listProjectPrototypes(db, pid);
+  const protos = await listProjectPrototypes(db, projectId);
 
   return (
-    <section className="mb-6">
-      <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-graphite">Design prototypes</div>
+    <div className="mb-4">
+      <div className="mb-2 font-mono text-[12px] text-ink">{repoFullName}</div>
       <Card className="p-4">
         <p className="mb-4 text-[13px] text-graphite">
           Upload HTML prototypes to give the generation model a visual reference. Each is rendered to a PNG by the
-          background worker and included in the generation context.
+          background worker and included in this repo&apos;s generation context.
         </p>
 
-        <PrototypeUploadForm />
+        <PrototypeUploadForm projectId={projectId} />
 
         {protos.length > 0 && (
           <ul className="mt-4 grid gap-2 border-t border-hairline pt-4">
@@ -69,6 +67,6 @@ export async function DesignPrototypes() {
           </div>
         )}
       </Card>
-    </section>
+    </div>
   );
 }

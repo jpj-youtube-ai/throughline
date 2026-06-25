@@ -4,11 +4,12 @@ import { useActionState } from "react";
 import { addPrototypeAction, type ProtoState } from "./actions";
 import { Field, fieldClass, buttonClass } from "@/components/ui";
 
-export function PrototypeUploadForm() {
+export function PrototypeUploadForm({ projectId }: { projectId: string }) {
   const [state, action, pending] = useActionState<ProtoState, FormData>(addPrototypeAction, null);
 
   return (
     <form action={action} className="grid gap-3">
+      <input type="hidden" name="projectId" value={projectId} />
       <Field label="Label">
         <input
           type="text"
