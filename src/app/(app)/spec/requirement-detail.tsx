@@ -4,6 +4,7 @@ import { activeProjectId } from "@/project/current";
 import { Pill, Empty, type Tone } from "@/components/ui";
 import { SpecGenerate } from "./spec-generate";
 import { RequirementDiagram } from "./requirement-diagram";
+import { SpecClaimButton } from "./spec-claim-button";
 
 const STATUS_LABEL: Record<string, string> = { shipped: "shipped", building: "in progress", planned: "not started" };
 const PROV_LABEL: Record<string, string> = { imported: "genesis", voted: "voted", drift: "drift" };
@@ -37,7 +38,11 @@ export async function RequirementDetail({ reqKey }: { reqKey: string }) {
                 <span className={`mt-1.5 size-1.5 shrink-0 rounded-full ${t.githubStatus === "closed" ? "bg-shipped" : "bg-graphite"}`} />
                 <span className="shrink-0 font-mono text-spine-deep">{t.key}</span>
                 <span className="min-w-0 flex-1 break-words text-ink">{t.title}</span>
-                {t.claimState === "claimed" && <span className="shrink-0"><Pill tone="spine" dot={false}>claimed</Pill></span>}
+                {t.claimState === "claimed" ? (
+                  <span className="shrink-0"><Pill tone="spine" dot={false}>claimed</Pill></span>
+                ) : (
+                  <SpecClaimButton taskId={t.id} reqKey={r.key} />
+                )}
                 {t.githubIssueUrl && (
                   <a href={t.githubIssueUrl} target="_blank" rel="noreferrer" className="shrink-0 font-mono text-[11px] text-spine-deep hover:underline">issue ↗</a>
                 )}

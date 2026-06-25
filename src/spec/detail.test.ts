@@ -22,6 +22,8 @@ test("getRequirementDetail returns the requirement with its tasks; null for unkn
     assert.equal(detail!.key, "REQ-001");
     assert.equal(detail!.tasks.length, 1);
     assert.equal(detail!.tasks[0].key, "TASK-001");
+    assert.equal(typeof detail!.tasks[0].id, "string");
+    assert.ok(detail!.tasks[0].id.length > 0, "task row carries its id");
     assert.equal(detail!.tasks[0].githubIssueUrl, "http://x/1");
     assert.equal(detail!.diagramHtml, null); // defaults null until generated
   } finally { await close(); }

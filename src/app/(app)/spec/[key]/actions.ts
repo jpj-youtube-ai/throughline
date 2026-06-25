@@ -10,8 +10,16 @@ import { activeProjectId } from "@/project/current";
 import { refreshProjectClone } from "@/project/refresh";
 import { getRequirementDetail } from "@/spec/detail";
 import { generateRequirementDiagramHtml } from "@/spec/diagram";
+import { claimAndBranch } from "@/tasks/claim-and-branch";
+import type { ClaimState } from "../../tasks/actions";
 
-export type GenState = { ok: true; taskKeys: string[] } | { ok: false; error: string } | null;
+export interface GenTask {
+  id: string;
+  key: string;
+  title: string;
+  claimState: "unclaimed" | "claimed";
+}
+export type GenState = { ok: true; tasks: GenTask[] } | { ok: false; error: string } | null;
 
 export async function generateTasksForRequirement(_prev: GenState, formData: FormData): Promise<GenState> {
   const session = await auth();
@@ -39,10 +47,21 @@ export async function generateTasksForRequirement(_prev: GenState, formData: For
   // up within one tick. Keeping this slow, external work off the request path also means
   // the action returns as soon as tasks are persisted.
 
+  // Re-fetch the requirement's tasks (now persisted, with ids) so they render
+  // inline with claim controls — the detail sits in an intercepted drawer that
+  // doesn't re-render on revalidate, so we return the data directly.
+  const detail = await getRequirementDetail(db, pid, key);
+  const genTasks: GenTask[] = (detail?.tasks ?? []).map((t) => ({
+    id: t.id,
+    key: t.key,
+    title: t.title,
+    claimState: t.claimState,
+  }));
+
   revalidatePath("/spec");
   revalidatePath("/dashboard");
   revalidatePath(`/spec/${key}`);
-  return { ok: true, taskKeys: r.taskKeys ?? [] };
+  return { ok: true, tasks: genTasks };
 }
 
 export type DiagramState = { ok: true; html: string } | { ok: false; error: string } | null;
@@ -71,4 +90,25 @@ export async function generateRequirementDiagram(_prev: DiagramState, formData: 
   revalidatePath("/spec");
   revalidatePath("/dashboard");
   return { ok: true, html };
+}
+
+export type { ClaimState };
+
+// Claim a task from the spec-map requirement detail (REQ-010). Same claim domain
+// as the /tasks board (claimAndBranch); revalidates the spec routes so the detail
+// reflects the new claim.
+export async function claimFromSpec(_prev: ClaimState, formData: FormData): Promise<ClaimState> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Not signed in." };
+  const taskId = String(formData.get("taskId"));
+  const key = String(formData.get("key") ?? "");
+  const db = getDb();
+
+  const { claimed, branchCreated } = await claimAndBranch(db, taskId, session.user.id);
+  revalidatePath("/spec");
+  revalidatePath("/dashboard");
+  revalidatePath("/tasks");
+  if (key) revalidatePath(`/spec/${key}`);
+  if (!claimed) return { ok: false, error: "Task is already claimed." };
+  return { ok: true, branchCreated };
 }
