@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { prototypes } from "../db/schema";
 import { emitEvent } from "../db/events";
@@ -54,11 +54,11 @@ export async function listProjectPrototypes(
   projectId: string,
 ): Promise<{ id: string; label: string; rendered: boolean }[]> {
   const rows = await db
-    .select({ id: prototypes.id, label: prototypes.label, image: prototypes.image })
+    .select({ id: prototypes.id, label: prototypes.label, rendered: sql<boolean>`${prototypes.image} is not null` })
     .from(prototypes)
     .where(eq(prototypes.projectId, projectId))
     .orderBy(desc(prototypes.createdAt));
-  return rows.map((r) => ({ id: r.id, label: r.label, rendered: r.image !== null }));
+  return rows.map((r) => ({ id: r.id, label: r.label, rendered: r.rendered }));
 }
 
 /** The project's rendered prototypes for the generation context (REQ-030/008) —
