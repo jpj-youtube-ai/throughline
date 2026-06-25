@@ -11,6 +11,7 @@ Rules:
 - The task body is POINTERS, not a canned prompt and not the code. In pointers, name the specific files, modules, and existing patterns to follow or create (drawn from the repo slice and conventions). In acceptance_check, give a concrete, verifiable condition that proves the task is done (a test to pass, a command's output, an observable behavior). Do not write the implementation, and do not just restate the title.
 - effort: integer 1-5 (1 ≈ an hour or two; 5 ≈ large/multi-day). risk: low | med | high. confidence: integer 0-100 (how sure you are the task as written is correct and complete). Be honest: a vague or underspecified idea should yield lower confidence and narrower, more investigative tasks (e.g. "profile X", "measure Y") rather than a confidently-detailed plan. Do not invent false certainty.
 - Prerequisites & scope — stay focused on THIS idea. Emit tasks only for: (1) the idea's own work, on its requirement; and (2) at most ONE bootstrap task that stands up the project skeleton and the load-bearing foundation the idea writes through (e.g. the append-only event log + emitEvent helper + base schema module and migrations), linked to the requirement that owns that foundation, and only when it is absent from the repo slice. Do NOT emit tasks that implement OTHER substantial, separately-specified requirements the idea merely depends on (another feature, sign-in/auth, a sibling subsystem and its tables) — those are delivered by their own approved ideas. Instead, name them as dependencies in the relevant task's pointers (e.g. "depends on REQ-001 sign-in and REQ-005 ideas existing"). If a prerequisite already exists in the slice, reuse it and reference it in pointers instead of rebuilding it. Never fold a prerequisite into the idea's own requirement or mislabel it.
+- Do not duplicate completed or in-flight work. The "## ALREADY IN THIS PROJECT" section lists tasks already created for this project (each tagged open | claimed | closed) and recent commits that landed on the default branch. Never emit a task that re-implements something already listed there — reuse it and reference it in pointers instead. Emit only tasks that add what is genuinely still missing for the idea.
 - Respect the conventions and the project's build order. Do not build features or requirements broader than the idea and its direct prerequisites need — surfacing a genuine prerequisite is not scaffolding ahead, but building unrelated breadth is. Honor the truth model in CLAUDE.md (append-only events; event-write in the same transaction as state) where it bears on the idea.
 
 Return your answer ONLY as the required structured output. No prose outside it.`;
@@ -49,6 +50,21 @@ export interface UserMessageParts {
   specText: string;
   idea: Idea;
   slice: RepoSlice;
+  taskSummary?: string[];
+  recentCommits?: string[];
+}
+
+function alreadyBuiltBlock(taskSummary: string[], recentCommits: string[]): string {
+  if (taskSummary.length === 0 && recentCommits.length === 0) {
+    return "## ALREADY IN THIS PROJECT\n(Nothing built yet — greenfield.)";
+  }
+  const tasksPart =
+    taskSummary.length > 0
+      ? `Existing tasks (newest first) — already created; do NOT re-create these:\n${taskSummary.join("\n")}`
+      : "Existing tasks: (none yet)";
+  const commitsPart =
+    recentCommits.length > 0 ? `\n\nRecent commits on the default branch:\n${recentCommits.join("\n")}` : "";
+  return `## ALREADY IN THIS PROJECT\n${tasksPart}${commitsPart}`;
 }
 
 export function buildUserMessage(p: UserMessageParts): string {
@@ -64,6 +80,8 @@ Next available requirement number for NEW requirements: ${p.nextKey} (use ${p.ne
 
 Full spec for context:
 ${p.specText}
+
+${alreadyBuiltBlock(p.taskSummary ?? [], p.recentCommits ?? [])}
 
 ## APPROVED IDEA
 ${ideaBlock(p.idea)}

@@ -47,3 +47,26 @@ export async function ensureClone(opts: EnsureCloneOptions): Promise<void> {
 
   await git(["-C", opts.dir, "remote", "set-url", "origin", safeUrl]);
 }
+
+/**
+ * Recent commit subjects of the clone's checked-out branch (REQ-008 generation
+ * context) — newest-first, capped at `limit` (default 80). Best-effort: returns
+ * [] on any error (non-repo, git failure) so it never blocks generation.
+ */
+export async function recentGitLog(repoPath: string, opts: { limit?: number } = {}): Promise<string[]> {
+  const limit = opts.limit ?? 80;
+  return new Promise((resolve) => {
+    const p = spawn("git", ["-C", repoPath, "log", "--no-merges", "--format=%s", "-n", String(limit)], {
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    let out = "";
+    p.stdout?.on("data", (d: Buffer) => {
+      out += d.toString();
+    });
+    p.on("error", () => resolve([]));
+    p.on("close", (code) => {
+      if (code !== 0) return resolve([]);
+      resolve(out.split("\n").map((s) => s.trim()).filter(Boolean));
+    });
+  });
+}

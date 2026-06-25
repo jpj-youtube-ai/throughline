@@ -9,6 +9,8 @@ import { estimateTokens } from "../tokens";
 import { generateTasks } from "./run";
 import type { generateTasks as GenerateTasksFn } from "./run";
 import { persistGeneration, persistGenerationForRequirement } from "./persist";
+import { recentGitLog } from "../github/clone";
+import { projectTaskSummary } from "./context";
 
 const MODEL_ID = "claude-opus-4-8";
 const MAX_CONTEXT_TOKENS = 40000;
@@ -57,12 +59,16 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
   const conventions = fs.existsSync(claudePath) ? fs.readFileSync(claudePath, "utf8") : null;
 
   const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements).where(eq(requirements.projectId, proj.id)));
+  const taskSummary = await projectTaskSummary(db, proj.id);
+  const recentCommits = await recentGitLog(proj.localClonePath);
 
   const fixed =
     estimateTokens(specText) +
     estimateTokens(conventions ?? "") +
     estimateTokens(idea.title + why) +
     estimateTokens(SYSTEM_PROMPT) +
+    estimateTokens(taskSummary.join("\n")) +
+    estimateTokens(recentCommits.join("\n")) +
     800;
   const slice = buildSlice({
     repoPath: proj.localClonePath,
@@ -81,6 +87,8 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     specText,
     idea: { title: idea.title, why, feasibility: idea.feasibility, viability: idea.viability },
     slice,
+    taskSummary,
+    recentCommits,
   });
 
   const result = await generateTasks({
@@ -143,12 +151,16 @@ export async function generateForRequirement(
 
   const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements).where(eq(requirements.projectId, proj.id)));
   const seedWhy = req.description || req.title;
+  const taskSummary = await projectTaskSummary(db, proj.id);
+  const recentCommits = await recentGitLog(proj.localClonePath);
 
   const fixed =
     estimateTokens(specText) +
     estimateTokens(conventions ?? "") +
     estimateTokens(req.title + seedWhy) +
     estimateTokens(SYSTEM_PROMPT) +
+    estimateTokens(taskSummary.join("\n")) +
+    estimateTokens(recentCommits.join("\n")) +
     800;
   const slice = buildSliceFn({
     repoPath: proj.localClonePath,
@@ -167,6 +179,8 @@ export async function generateForRequirement(
     specText,
     idea: { title: req.title, why: seedWhy, feasibility: null, viability: null },
     slice,
+    taskSummary,
+    recentCommits,
   });
 
   const result = await generate({

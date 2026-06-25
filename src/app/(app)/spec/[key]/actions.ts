@@ -7,6 +7,7 @@ import { getDb } from "@/db/client";
 import { requirements } from "@/db/schema";
 import { generateForRequirementKey } from "@/generation/orchestrate";
 import { activeProjectId } from "@/project/current";
+import { refreshProjectClone } from "@/project/refresh";
 import { getRequirementDetail } from "@/spec/detail";
 import { generateRequirementDiagramHtml } from "@/spec/diagram";
 
@@ -22,6 +23,12 @@ export async function generateTasksForRequirement(_prev: GenState, formData: For
   // across projects (every project has its own REQ-001…), so a bare-key lookup can
   // land on another project's same-keyed requirement (which may already have tasks).
   const pid = await activeProjectId();
+  // Refresh the clone so generation sees the latest merged code (REQ-008). Best-effort.
+  try {
+    await refreshProjectClone(db, pid);
+  } catch (e) {
+    console.error("[spec] clone refresh skipped:", e instanceof Error ? e.message : e);
+  }
   const r = await generateForRequirementKey(db, pid, key);
   if (!r.ok) return { ok: false, error: r.failure ?? "Generation failed." };
 

@@ -218,6 +218,31 @@ test("generateForRequirementKey resolves the key WITHIN the given project, not a
   } finally { await close(); }
 });
 
+test("generateForRequirement feeds the ALREADY IN THIS PROJECT completion context to the generator", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const [p] = await db.insert(project).values({ repoFullName: "a/b", defaultBranch: "main", installationId: 1, localClonePath: "/x" }).returning({ id: project.id });
+    // Target requirement (no tasks → generation proceeds).
+    const [target] = await db.insert(requirements).values({ key: "REQ-001", title: "Target", description: "d", provenance: "imported", projectId: p.id }).returning({ id: requirements.id });
+    // A DIFFERENT requirement that already has a completed task — should surface in the context.
+    const [other] = await db.insert(requirements).values({ key: "REQ-002", title: "Other", description: "d", provenance: "imported", projectId: p.id }).returning({ id: requirements.id });
+    await db.insert(tasks).values({ key: "TASK-009", title: "Already done", body: "b", requirementId: other.id, effort: 1, risk: "low", confidence: 50, projectId: p.id, githubStatus: "closed" });
+
+    let captured = "";
+    const capturing: typeof import("./run").generateTasks = async (args) => {
+      captured = args.userMessage;
+      return { ok: false, failure: "captured", usage: null }; // short-circuit before persist
+    };
+
+    const r = await generateForRequirement(db, target.id, { generate: capturing });
+    assert.equal(r.ok, false);
+    assert.ok(captured.includes("## ALREADY IN THIS PROJECT"), "completion section present");
+    assert.ok(captured.includes("TASK-009 [closed] — Already done → REQ-002"), "existing closed task surfaced");
+  } finally {
+    await close();
+  }
+});
+
 test("generateForRequirement passes the project's context pins as the slice includes", async () => {
   const { db, close } = await createTestDb();
   try {
