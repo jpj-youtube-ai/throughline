@@ -8,10 +8,10 @@ export function SpecClaimButton({ taskId, reqKey }: { taskId: string; reqKey: st
   const [state, action, pending] = useActionState<ClaimState, FormData>(claimFromSpec, null);
 
   if (state?.ok === true) {
-    return (
-      <span className="shrink-0 font-mono text-[11px] text-shipped">
-        {state.branchCreated ? "claimed" : "claimed · branch retrying"}
-      </span>
+    return state.branchCreated ? (
+      <span className="shrink-0 font-mono text-[11px] text-spine-deep">claimed</span>
+    ) : (
+      <span className="shrink-0 font-mono text-[11px] text-risk">claimed · branch retrying</span>
     );
   }
 

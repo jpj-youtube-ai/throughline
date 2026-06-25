@@ -20,7 +20,7 @@ export function SpecGenerate({ reqKey }: { reqKey: string }) {
 
       {state?.ok === true && (
         <div className="mt-3">
-          <p className="text-[13px] text-shipped">Generated {state.tasks.length} task(s) — claim what you'll work on:</p>
+          <p className="text-[13px] text-ink-soft">Generated {state.tasks.length} task(s) — claim what you&apos;ll work on:</p>
           <ul className="mt-2 flex flex-col gap-2">
             {state.tasks.map((t) => (
               <li key={t.key} className="flex items-start gap-2 text-[13px]">
