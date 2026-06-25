@@ -111,6 +111,10 @@ export const tasks = pgTable("tasks", {
   // Mirrored from GitHub only -- written exclusively by the webhook handler.
   githubStatus: githubStatus("github_status").notNull().default("open"),
   branchCreatedAt: timestamp("branch_created_at", { withTimezone: true }),
+  // When we closed the task's GitHub issue after its PR merged (REQ-009).
+  // Outbound-action bookkeeping, written ONLY by the worker close sweep — this is
+  // NOT github_status (which stays webhook-only) and emits no event.
+  issueClosedAt: timestamp("issue_closed_at", { withTimezone: true }),
   projectId: uuid("project_id").notNull().references(() => project.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),

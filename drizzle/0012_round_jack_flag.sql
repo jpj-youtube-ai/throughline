@@ -1,0 +1,1 @@
+ALTER TABLE "tasks" ADD COLUMN "issue_closed_at" timestamp with time zone;
