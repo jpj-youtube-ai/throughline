@@ -8,7 +8,11 @@ async function main(): Promise<void> {
   const { db, close } = createDb();
   try {
     const r = await materializeSpec(db);
-    console.error(`[materialize] ${r.requirementCount} requirements → spec committed (${r.sha.slice(0, 7)})`);
+    if (r.status === "materialized") {
+      console.error(`[materialize] ${r.requirementCount} requirements → spec committed (${r.sha?.slice(0, 7)})`);
+    } else {
+      console.error(`[materialize] ${r.requirementCount} requirements — spec already up to date`);
+    }
   } finally {
     await close();
   }
