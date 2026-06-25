@@ -54,6 +54,8 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
   const [proj] = await db.select().from(project).where(eq(project.id, idea.projectId)).limit(1);
   if (!proj) return { ok: false, failure: `project ${idea.projectId} not found (REQ-002)` };
 
+  const prototypeLabels = (await loadProjectPrototypes(db, proj.id)).map((p) => p.label);
+
   const specPath = path.join(proj.localClonePath, proj.specPath);
   const claudePath = path.join(proj.localClonePath, proj.claudeMdPath);
   const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, "utf8") : "";
@@ -90,6 +92,7 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     slice,
     taskSummary,
     recentCommits,
+    prototypeLabels,
   });
 
   const result = await generateTasks({
@@ -97,6 +100,7 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     userMessage,
     existingKeys: ctx.existingKeys,
     nextNumber: ctx.nextNumber,
+    prototypeLabels,
     maxRetries: 2,
     thinking: true,
   });
@@ -145,6 +149,8 @@ export async function generateForRequirement(
   const [proj] = await db.select().from(project).where(eq(project.id, req.projectId)).limit(1);
   if (!proj) return { ok: false, failure: `project ${req.projectId} not found (REQ-002)` };
 
+  const prototypeLabels = (await loadProjectPrototypes(db, proj.id)).map((p) => p.label);
+
   const specPath = path.join(proj.localClonePath, proj.specPath);
   const claudePath = path.join(proj.localClonePath, proj.claudeMdPath);
   const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, "utf8") : "";
@@ -182,6 +188,7 @@ export async function generateForRequirement(
     slice,
     taskSummary,
     recentCommits,
+    prototypeLabels,
   });
 
   const result = await generate({
@@ -189,6 +196,7 @@ export async function generateForRequirement(
     userMessage,
     existingKeys: ctx.existingKeys,
     nextNumber: ctx.nextNumber,
+    prototypeLabels,
     maxRetries: 2,
     thinking: true,
   });

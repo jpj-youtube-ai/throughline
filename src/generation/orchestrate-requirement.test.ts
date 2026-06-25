@@ -18,7 +18,7 @@ const fakeGenerate = async (): Promise<GenerateTasksResult> => ({
   usage: null,
   output: {
     new_requirements: [],
-    tasks: [{ title: "Do it", requirement_key: "REQ-001", body: { pointers: ["src/x.ts"], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 90 }],
+    tasks: [{ title: "Do it", requirement_key: "REQ-001", body: { pointers: ["src/x.ts"], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 90, prototypes: [] }],
   },
 });
 
@@ -107,7 +107,7 @@ test("generateForRequirement scopes requirement context to subject's project onl
       capturedExistingList = opts.userMessage;
       return {
         ok: true, model: "fake", usage: null,
-        output: { new_requirements: [], tasks: [{ title: "Beta task", requirement_key: "REQ-001", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80 }] },
+        output: { new_requirements: [], tasks: [{ title: "Beta task", requirement_key: "REQ-001", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80, prototypes: [] }] },
       };
     };
 
@@ -158,7 +158,7 @@ test("generateForRequirement loads the subject requirement's project (not anothe
         usage: null,
         output: {
           new_requirements: [],
-          tasks: [{ title: "Beta task", requirement_key: "REQ-001", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80 }],
+          tasks: [{ title: "Beta task", requirement_key: "REQ-001", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80, prototypes: [] }],
         },
       };
     };

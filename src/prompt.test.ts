@@ -34,3 +34,7 @@ test("SYSTEM_PROMPT carries the no-duplication rule", () => {
   assert.ok(/do not duplicate completed or in-flight work/i.test(SYSTEM_PROMPT));
 });
 
+test("SYSTEM_PROMPT instructs marking frontend tasks with prototype labels", () => {
+  assert.ok(/prototypes/i.test(SYSTEM_PROMPT) && /label/i.test(SYSTEM_PROMPT));
+});
+

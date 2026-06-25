@@ -14,6 +14,7 @@ export interface GenerateTasksArgs {
   userMessage: string; // assembled prompt (conventions + spec + idea + repo slice)
   existingKeys: Set<string>; // existing REQ keys, for link validation
   nextNumber: number; // next available REQ number, for new-req validation
+  prototypeLabels: string[]; // labels of available design prototypes for this project
   maxRetries: number;
   thinking: boolean;
   maxTokens?: number;
@@ -75,6 +76,7 @@ export async function generateTasks(args: GenerateTasksArgs): Promise<GenerateTa
     const errs = semanticErrors(parsed.data, {
       existingKeys: args.existingKeys,
       nextNumber: args.nextNumber,
+      prototypeLabels: new Set(args.prototypeLabels),
     });
     if (errs.length) {
       lastFailure = `semantic validation: ${errs.join("; ")}`;

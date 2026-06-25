@@ -16,6 +16,7 @@ const OUTPUT: GenerationOutput = {
       effort: 3,
       risk: "med",
       confidence: 75,
+      prototypes: [],
     },
     {
       title: "Build the new capability",
@@ -24,6 +25,7 @@ const OUTPUT: GenerationOutput = {
       effort: 2,
       risk: "low",
       confidence: 60,
+      prototypes: [],
     },
   ],
 };
@@ -183,7 +185,7 @@ test("persistGeneration keyToReqId is scoped to the idea's project — tasks can
     // OUTPUT tasks link to REQ-003 (an existing key) — should resolve to project A's REQ-003 only
     const output: import("../schema").GenerationOutput = {
       new_requirements: [],
-      tasks: [{ title: "Log task", requirement_key: "REQ-003", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80 }],
+      tasks: [{ title: "Log task", requirement_key: "REQ-003", body: { pointers: [], acceptance_check: "ok" }, effort: 1, risk: "low", confidence: 80, prototypes: [] }],
     };
     const res = await persistGeneration(db, { ideaId: idea.id, output, model: "m", usage: null });
     assert.deepEqual(res.taskKeys, ["TASK-001"]);

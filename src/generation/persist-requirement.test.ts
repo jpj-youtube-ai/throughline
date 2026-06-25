@@ -17,6 +17,7 @@ function output(n: number): GenerationOutput {
       effort: 2,
       risk: "low" as const,
       confidence: 80,
+      prototypes: [] as string[],
     })),
   };
 }

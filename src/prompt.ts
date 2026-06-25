@@ -12,6 +12,7 @@ Rules:
 - effort: integer 1-5 (1 ≈ an hour or two; 5 ≈ large/multi-day). risk: low | med | high. confidence: integer 0-100 (how sure you are the task as written is correct and complete). Be honest: a vague or underspecified idea should yield lower confidence and narrower, more investigative tasks (e.g. "profile X", "measure Y") rather than a confidently-detailed plan. Do not invent false certainty.
 - Prerequisites & scope — stay focused on THIS idea. Emit tasks only for: (1) the idea's own work, on its requirement; and (2) at most ONE bootstrap task that stands up the project skeleton and the load-bearing foundation the idea writes through (e.g. the append-only event log + emitEvent helper + base schema module and migrations), linked to the requirement that owns that foundation, and only when it is absent from the repo slice. Do NOT emit tasks that implement OTHER substantial, separately-specified requirements the idea merely depends on (another feature, sign-in/auth, a sibling subsystem and its tables) — those are delivered by their own approved ideas. Instead, name them as dependencies in the relevant task's pointers (e.g. "depends on REQ-001 sign-in and REQ-005 ideas existing"). If a prerequisite already exists in the slice, reuse it and reference it in pointers instead of rebuilding it. Never fold a prerequisite into the idea's own requirement or mislabel it.
 - Do not duplicate completed or in-flight work. The "## ALREADY IN THIS PROJECT" section lists tasks already created for this project (each tagged open | claimed | closed) and recent commits that landed on the default branch. Never emit a task that re-implements something already listed there — reuse it and reference it in pointers instead. Emit only tasks that add what is genuinely still missing for the idea.
+- You may be given the project's design prototypes by label (see "## DESIGN PROTOTYPES"). For any task that builds one of those UIs, list the exact matching label(s) in that task's "prototypes" field; the prototype's HTML will be committed to the task's branch for the agent to build against. Leave "prototypes" empty for non-frontend tasks. Use only labels from the provided list.
 - Respect the conventions and the project's build order. Do not build features or requirements broader than the idea and its direct prerequisites need — surfacing a genuine prerequisite is not scaffolding ahead, but building unrelated breadth is. Honor the truth model in CLAUDE.md (append-only events; event-write in the same transaction as state) where it bears on the idea.
 Return your answer ONLY as the required structured output. No prose outside it.`;
 
@@ -51,6 +52,7 @@ export interface UserMessageParts {
   slice: RepoSlice;
   taskSummary?: string[];
   recentCommits?: string[];
+  prototypeLabels?: string[];
 }
 
 function alreadyBuiltBlock(taskSummary: string[], recentCommits: string[]): string {
@@ -68,6 +70,10 @@ function alreadyBuiltBlock(taskSummary: string[], recentCommits: string[]): stri
 
 export function buildUserMessage(p: UserMessageParts): string {
   const conventions = p.conventions ?? "(none provided)";
+  const prototypesBlock =
+    p.prototypeLabels && p.prototypeLabels.length
+      ? `## DESIGN PROTOTYPES (available by label)\n${p.prototypeLabels.map((l) => `- ${l}`).join("\n")}\n\n`
+      : "";
   return `## PROJECT CONVENTIONS (CLAUDE.md)
 ${conventions}
 
@@ -82,7 +88,7 @@ ${p.specText}
 
 ${alreadyBuiltBlock(p.taskSummary ?? [], p.recentCommits ?? [])}
 
-## APPROVED IDEA
+${prototypesBlock}## APPROVED IDEA
 ${ideaBlock(p.idea)}
 
 ## TARGET REPO SLICE
