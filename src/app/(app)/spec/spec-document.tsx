@@ -1,5 +1,5 @@
 import { getDb } from "@/db/client";
-import { readSpec } from "@/spec/read";
+import { buildSpecContent } from "@/spec/content";
 import { activeProjectId } from "@/project/current";
 import { Empty } from "@/components/ui";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -30,9 +30,9 @@ const components: Components = {
 // Read-only; the empty state covers an unbound project or a pre-materialize repo.
 export async function SpecDocument() {
   const pid = await activeProjectId();
-  const { content } = await readSpec(getDb(), pid);
-  if (!content) {
-    return <Empty title="No SPEC.md yet.">It is written when requirements are first materialized.</Empty>;
+  const { content, requirementCount } = await buildSpecContent(getDb(), pid);
+  if (requirementCount === 0) {
+    return <Empty title="No requirements yet.">SPEC.md is generated from the requirements — import or vote some in first.</Empty>;
   }
   return (
     <div className="max-w-prose">

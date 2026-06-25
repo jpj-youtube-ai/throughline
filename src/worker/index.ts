@@ -97,14 +97,18 @@ export async function tickForProject(
     console.error(`[worker][${proj.id}] issue close skipped:`, formatError(e));
   }
 
-  // Re-materialize the spec for this project when requirements/tasks changed (REQ-012).
-  if (didGenerate) {
-    try {
-      const m = await specMaterialize(db, proj.id);
-      console.error(`[worker][${proj.id}] spec materialized (${m.requirementCount} reqs, ${m.sha.slice(0, 7)})`);
-    } catch (e) {
-      console.error(`[worker][${proj.id}] spec materialization skipped:`, formatError(e));
+  // Re-materialize the spec every tick (REQ-012). materializeSpec is a cheap no-op
+  // when the projection already matches the committed SPEC.md, so this safely covers
+  // every path that changes requirements/tasks (genesis import, requirement-driven
+  // generation, idea generation) and self-heals. Best-effort: a git/network failure
+  // is logged and never aborts the tick.
+  try {
+    const m = await specMaterialize(db, proj.id);
+    if (m.status === "materialized") {
+      console.error(`[worker][${proj.id}] spec materialized (${m.requirementCount} reqs, ${m.sha?.slice(0, 7)})`);
     }
+  } catch (e) {
+    console.error(`[worker][${proj.id}] spec materialization skipped:`, formatError(e));
   }
 
   // Generate digest for this project if due (REQ-026).
