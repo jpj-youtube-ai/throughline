@@ -3,7 +3,6 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { getDb } from "@/db/client";
 import { syncClaudeMdForProject } from "@/integrity/claude-md";
-import { activeProjectId } from "@/project/current";
 import { addPrototype, removePrototype } from "@/prototypes/store";
 
 export type SyncState =
@@ -25,8 +24,9 @@ export async function addPrototypeAction(_prev: ProtoState, formData: FormData):
   const html = await file.text();
   if (!html.trim()) return { ok: false, error: "The file is empty." };
   const db = getDb();
-  const pid = await activeProjectId();
-  await addPrototype(db, { projectId: pid, label, html, actorId: session.user.id });
+  const projectId = String(formData.get("projectId") ?? "");
+  if (!projectId) return { ok: false, error: "Missing project." };
+  await addPrototype(db, { projectId, label, html, actorId: session.user.id });
   revalidatePath("/connect");
   return { ok: true };
 }
