@@ -139,6 +139,7 @@ export async function closeIssuesForMergedTasks(
   const closed: string[] = [];
   for (const t of pending) {
     try {
+      // issueNumber is non-null here: the isNotNull(githubIssueNumber) filter above guarantees it.
       await closeIssue(proj.installationId, proj.repoFullName, t.issueNumber!);
       await db
         .update(tasks)
