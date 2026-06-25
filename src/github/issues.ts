@@ -5,6 +5,8 @@ import { openIssue as realOpenIssue, closeIssue as realCloseIssue } from "./app"
 import { listProjects } from "../project/list";
 import { generatePreviewHtml } from "../preview/generate";
 import { renderHtmlToPng } from "../preview/render";
+import { loadTaskPrototypes } from "@/prototypes/store";
+import { slugify } from "@/prototypes/slug";
 
 export type OpenIssueFn = (
   installationId: number,
@@ -74,7 +76,12 @@ export async function createIssuesForTasks(
         console.error(`[issues] preview failed for ${t.key}:`, e instanceof Error ? e.message : e);
       }
     }
-    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, bodyPrefix + t.body);
+    const protos = await loadTaskPrototypes(db, t.id);
+    const designSection = protos.length
+      ? "\n\n## Design prototype\nBuild the UI to match the design prototype(s) committed to this task's branch:\n" +
+        protos.map((p) => `- **${p.label}** → \`prototypes/${slugify(p.label)}.html\``).join("\n")
+      : "";
+    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, bodyPrefix + t.body + designSection);
     await db
       .update(tasks)
       .set({ githubIssueNumber: issue.number, githubIssueUrl: issue.url, updatedAt: new Date() })

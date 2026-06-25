@@ -1,10 +1,10 @@
 import { desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { prototypes } from "../db/schema";
+import { prototypes, taskPrototypes } from "../db/schema";
 import { emitEvent } from "../db/events";
 
 /** Add a project design prototype (REQ-030): store HTML + emit prototype.added in
- *  one tx. The PNG is rendered later by the worker sweep (no render here). */
+ *  one tx. HTML is stored as-is; no image rendering. */
 export async function addPrototype(
   db: Db,
   input: { projectId: string; label: string; html: string; actorId?: string | null },
@@ -45,6 +45,19 @@ export async function removePrototype(
     });
   });
   return { removed: true };
+}
+
+/** The prototypes a task is linked to (REQ-030) — id, label, and the HTML to
+ *  commit onto the task's branch. */
+export async function loadTaskPrototypes(
+  db: Db,
+  taskId: string,
+): Promise<{ id: string; label: string; html: string }[]> {
+  return db
+    .select({ id: prototypes.id, label: prototypes.label, html: prototypes.html })
+    .from(taskPrototypes)
+    .innerJoin(prototypes, eq(prototypes.id, taskPrototypes.prototypeId))
+    .where(eq(taskPrototypes.taskId, taskId));
 }
 
 /** Load prototypes for a project (REQ-030) — id and label only, newest-first. */
