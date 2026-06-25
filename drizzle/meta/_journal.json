@@ -99,6 +99,13 @@
       "when": 1782396050234,
       "tag": "0013_good_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1782406652715,
+      "tag": "0014_nappy_crystal",
+      "breakpoints": true
     }
   ]
 }
