@@ -120,6 +120,16 @@ export const tasks = pgTable("tasks", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [unique("tasks_project_key_unique").on(t.projectId, t.key)]);
 
+export const prototypes = pgTable("prototypes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  projectId: uuid("project_id").notNull().references(() => project.id),
+  label: text("label").notNull(),
+  html: text("html").notNull(),
+  // Rendered-PNG cache (derived; regenerable, no event) — filled by the worker sweep.
+  image: bytea("image"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const driftFlags = pgTable("drift_flags", {
   id: uuid("id").primaryKey().defaultRandom(),
   taskId: uuid("task_id").notNull().references(() => tasks.id),
