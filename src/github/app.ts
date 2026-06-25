@@ -51,6 +51,25 @@ export async function openIssue(
   return { number: res.data.number, url: res.data.html_url };
 }
 
+// Close an issue on the bound repo once its task's PR has merged (REQ-009).
+// state_reason "completed" because the work shipped. Idempotent: closing an
+// already-closed issue is a GitHub no-op.
+export async function closeIssue(
+  installationId: number,
+  repoFullName: string,
+  issueNumber: number,
+): Promise<void> {
+  const [owner, repo] = repoFullName.split("/");
+  const octokit = await getInstallationOctokit(installationId);
+  await octokit.rest.issues.update({
+    owner,
+    repo,
+    issue_number: issueNumber,
+    state: "closed",
+    state_reason: "completed",
+  });
+}
+
 // Post a comment on an existing issue on the bound repo (REQ-009). Used to drop a
 // Claude Code kickoff prompt when a task's branch is created.
 export async function commentOnIssue(

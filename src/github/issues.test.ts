@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
 import { project, requirements, tasks } from "../db/schema";
-import { createIssuesForTasks, type OpenIssueFn } from "./issues";
+import { createIssuesForTasks, closeIssuesForMergedTasks, type OpenIssueFn, type CloseIssueFn } from "./issues";
 
 async function seedProject(
   db: Db,
@@ -176,4 +176,89 @@ test("createIssuesForTasks still creates the issue when rendering throws", async
     const [t] = await db.select({ num: tasks.githubIssueNumber }).from(tasks).where(eq(tasks.id, ids.taskId));
     assert.equal(t.num, 3);
   } finally { await close(); }
+});
+
+test("closeIssuesForMergedTasks closes merged tasks' issues, marks them once, idempotently", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { projId, reqId } = await seedProject(db, "acme/repo", 77);
+    await db.insert(tasks).values([
+      // eligible: closed + has an issue + not yet marked
+      { key: "TASK-001", title: "A", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId, githubStatus: "closed", githubIssueNumber: 11 },
+      // not eligible: still open
+      { key: "TASK-002", title: "B", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId, githubStatus: "open", githubIssueNumber: 12 },
+      // not eligible: closed but no issue number
+      { key: "TASK-003", title: "C", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId, githubStatus: "closed" },
+    ]);
+
+    const calls: Array<{ installationId: number; repo: string; issue: number }> = [];
+    const fakeClose: CloseIssueFn = async (installationId, repo, issue) => {
+      calls.push({ installationId, repo, issue });
+    };
+
+    const r1 = await closeIssuesForMergedTasks(db, projId, fakeClose);
+    assert.deepEqual(r1.closed, ["TASK-001"]);
+    assert.deepEqual(calls, [{ installationId: 77, repo: "acme/repo", issue: 11 }]);
+
+    const [t1] = await db.select({ at: tasks.issueClosedAt }).from(tasks).where(eq(tasks.key, "TASK-001"));
+    assert.ok(t1.at instanceof Date, "issue_closed_at marked on success");
+
+    // Second sweep: nothing left, no re-close.
+    const r2 = await closeIssuesForMergedTasks(db, projId, fakeClose);
+    assert.deepEqual(r2.closed, []);
+    assert.equal(calls.length, 1, "no re-close on the second sweep");
+  } finally {
+    await close();
+  }
+});
+
+test("closeIssuesForMergedTasks: a per-task close failure leaves it unmarked and does not block others", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { projId, reqId } = await seedProject(db, "acme/repo", 55);
+    await db.insert(tasks).values([
+      { key: "TASK-001", title: "A", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId, githubStatus: "closed", githubIssueNumber: 1 },
+      { key: "TASK-002", title: "B", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId, githubStatus: "closed", githubIssueNumber: 2 },
+    ]);
+
+    const fakeClose: CloseIssueFn = async (_i, _r, issue) => {
+      if (issue === 1) throw new Error("github boom");
+    };
+
+    const r = await closeIssuesForMergedTasks(db, projId, fakeClose);
+    assert.deepEqual(r.closed, ["TASK-002"], "the healthy task still closed");
+
+    const rows = await db.select({ key: tasks.key, at: tasks.issueClosedAt }).from(tasks);
+    const t1 = rows.find((x) => x.key === "TASK-001");
+    const t2 = rows.find((x) => x.key === "TASK-002");
+    assert.equal(t1?.at, null, "failed task left unmarked (retryable next tick)");
+    assert.ok(t2?.at instanceof Date, "succeeded task marked");
+  } finally {
+    await close();
+  }
+});
+
+test("closeIssuesForMergedTasks is project-scoped: another project's closed task is untouched", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { projId: pA, reqId: rA } = await seedProject(db, "acme/alpha", 10);
+    const { projId: pB, reqId: rB } = await seedProject(db, "acme/beta", 20);
+    await db.insert(tasks).values([
+      { key: "TASK-001", title: "Alpha", body: "b", requirementId: rA, effort: 1, risk: "low", confidence: 50, projectId: pA, githubStatus: "closed", githubIssueNumber: 1 },
+      { key: "TASK-001", title: "Beta", body: "b", requirementId: rB, effort: 1, risk: "low", confidence: 50, projectId: pB, githubStatus: "closed", githubIssueNumber: 1 },
+    ]);
+
+    const calls: number[] = [];
+    const fakeClose: CloseIssueFn = async (installationId) => { calls.push(installationId); };
+
+    const r = await closeIssuesForMergedTasks(db, pB, fakeClose);
+    assert.deepEqual(r.closed, ["TASK-001"]);
+    assert.deepEqual(calls, [20], "only project B's installation used");
+
+    const rows = await db.select({ pid: tasks.projectId, at: tasks.issueClosedAt }).from(tasks);
+    const a = rows.find((x) => x.pid === pA);
+    assert.equal(a?.at, null, "project A untouched");
+  } finally {
+    await close();
+  }
 });

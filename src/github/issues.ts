@@ -1,7 +1,7 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks, project } from "../db/schema";
-import { openIssue as realOpenIssue } from "./app";
+import { openIssue as realOpenIssue, closeIssue as realCloseIssue } from "./app";
 import { listProjects } from "../project/list";
 import { generatePreviewHtml } from "../preview/generate";
 import { renderHtmlToPng } from "../preview/render";
@@ -82,4 +82,72 @@ export async function createIssuesForTasks(
     created.push(t.key);
   }
   return { created };
+}
+
+export type CloseIssueFn = (
+  installationId: number,
+  repoFullName: string,
+  issueNumber: number,
+) => Promise<void>;
+
+export interface CloseIssuesResult {
+  closed: string[]; // task keys whose issue we closed this run
+}
+
+/**
+ * Close the GitHub issue for each task whose PR has merged (REQ-009) — i.e. the
+ * webhook has mirrored github_status to 'closed' — that we haven't closed yet.
+ * Runs AFTER any tx (an external call can't be rolled back). Idempotent and
+ * self-healing: issue_closed_at is stamped only on success, so a failure retries
+ * next tick. Closing an already-closed issue is a harmless GitHub no-op.
+ *
+ * issue_closed_at is outbound-action bookkeeping (like github_issue_number) — it
+ * is NOT github_status (webhook-only) and emits no event.
+ *
+ * `projectId` is optional: when omitted, resolves the oldest project (parity with
+ * createIssuesForTasks).
+ */
+export async function closeIssuesForMergedTasks(
+  db: Db,
+  projectId?: string,
+  closeIssue: CloseIssueFn = realCloseIssue,
+): Promise<CloseIssuesResult> {
+  let resolvedProjectId: string;
+  if (projectId) {
+    resolvedProjectId = projectId;
+  } else {
+    const projects = await listProjects(db);
+    if (projects.length === 0) throw new Error("No project bound (REQ-002).");
+    resolvedProjectId = projects[0].id;
+  }
+
+  const [proj] = await db.select().from(project).where(eq(project.id, resolvedProjectId)).limit(1);
+  if (!proj) throw new Error(`Project ${resolvedProjectId} not found (REQ-002).`);
+
+  const pending = await db
+    .select({ id: tasks.id, key: tasks.key, issueNumber: tasks.githubIssueNumber })
+    .from(tasks)
+    .where(
+      and(
+        eq(tasks.projectId, resolvedProjectId),
+        eq(tasks.githubStatus, "closed"),
+        isNotNull(tasks.githubIssueNumber),
+        isNull(tasks.issueClosedAt),
+      ),
+    );
+
+  const closed: string[] = [];
+  for (const t of pending) {
+    try {
+      await closeIssue(proj.installationId, proj.repoFullName, t.issueNumber!);
+      await db
+        .update(tasks)
+        .set({ issueClosedAt: new Date(), updatedAt: new Date() })
+        .where(eq(tasks.id, t.id));
+      closed.push(t.key);
+    } catch (e) {
+      console.error(`[issues] close failed for ${t.key}:`, e instanceof Error ? e.message : e);
+    }
+  }
+  return { closed };
 }
