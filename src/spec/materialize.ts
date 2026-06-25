@@ -1,8 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { requirements, tasks, project } from "../db/schema";
+import { project } from "../db/schema";
 import { emitEvent } from "../db/events";
-import { renderSpec, type SpecRequirement, type SpecTaskRef } from "./render";
+import { buildSpecContent } from "./content";
 import { repoCommit } from "./commit";
 
 export type SpecCommitFn = (content: string) => Promise<{ sha: string }>;
@@ -47,32 +47,17 @@ export async function materializeSpec(
   if (!proj) throw new Error("No project bound (REQ-002).");
   const projectId = proj.id;
 
-  const reqs: SpecRequirement[] = await db
-    .select({
-      key: requirements.key,
-      title: requirements.title,
-      description: requirements.description,
-      status: requirements.status,
-    })
-    .from(requirements)
-    .where(eq(requirements.projectId, projectId));
-  const taskRefs: SpecTaskRef[] = await db
-    .select({ key: tasks.key, title: tasks.title, requirementKey: requirements.key })
-    .from(tasks)
-    .innerJoin(requirements, eq(tasks.requirementId, requirements.id))
-    .where(eq(requirements.projectId, projectId));
-
-  const content = renderSpec(reqs, taskRefs);
+  const { content, requirementCount } = await buildSpecContent(db, projectId);
   const { sha } = await commit(content);
 
   await db.transaction(async (tx) => {
     await emitEvent(tx, {
       type: "spec.materialized",
       subjectType: "project",
-      payload: { count: reqs.length, commit_sha: sha },
+      payload: { count: requirementCount, commit_sha: sha },
       projectId,
     });
   });
 
-  return { requirementCount: reqs.length, sha };
+  return { requirementCount, sha };
 }
