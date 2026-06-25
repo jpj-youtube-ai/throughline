@@ -126,8 +126,6 @@ export const prototypes = pgTable("prototypes", {
   projectId: uuid("project_id").notNull().references(() => project.id),
   label: text("label").notNull(),
   html: text("html").notNull(),
-  // Rendered-PNG cache (derived; regenerable, no event) — filled by the worker sweep.
-  image: bytea("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

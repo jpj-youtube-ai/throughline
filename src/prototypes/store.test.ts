@@ -17,7 +17,6 @@ test("addPrototype inserts and emits prototype.added in one tx", async () => {
     const { id } = await addPrototype(db, { projectId: pid, label: "Home", html: "<h1>Home</h1>" });
     const [row] = await db.select().from(prototypes).where(eq(prototypes.id, id));
     assert.equal(row.label, "Home");
-    assert.equal(row.image, null);
     const evs = await db.select().from(events).where(eq(events.type, "prototype.added"));
     assert.equal(evs.length, 1);
     assert.equal(evs[0].projectId, pid);
@@ -43,7 +42,7 @@ test("loadProjectPrototypes returns id+label rows for the project, newest-first,
   try {
     const a = await seedProject(db, "a/alpha", 1);
     const b = await seedProject(db, "a/beta", 2);
-    // a: three rows (two with image column set, one without) — all should be returned
+    // a: three rows — all should be returned
     await db.insert(prototypes).values({ projectId: a, label: "A-old", html: "x", createdAt: new Date("2026-01-01T00:00:00Z") });
     await db.insert(prototypes).values({ projectId: a, label: "A-new", html: "x", createdAt: new Date("2026-01-02T00:00:00Z") });
     await db.insert(prototypes).values({ projectId: a, label: "A-third", html: "x", createdAt: new Date("2026-01-03T00:00:00Z") });
