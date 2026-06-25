@@ -46,6 +46,7 @@ test("tick iterates all projects: approved ideas from each project are generated
       },
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
+      closeIssues: async () => ({ closed: [] }),
       specMaterialize: async () => ({ requirementCount: 0, sha: "abc1234" }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -89,6 +90,7 @@ test("tick scopes approved-idea query per project: an idea from project A is not
       },
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
+      closeIssues: async () => ({ closed: [] }),
       specMaterialize: async () => ({ requirementCount: 0, sha: "abc1234" }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -127,6 +129,7 @@ test("tick per-project: a step failure in one project does not abort processing 
       },
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
+      closeIssues: async () => ({ closed: [] }),
       specMaterialize: async () => ({ requirementCount: 0, sha: "abc1234" }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -136,6 +139,34 @@ test("tick per-project: a step failure in one project does not abort processing 
 
     // The second idea (in the other project) should still be processed.
     assert.equal(processed.length, 1, "second idea still processed despite first failing");
+  } finally {
+    await close();
+  }
+});
+
+test("tick runs the close-issues sweep per project, and a failure in it does not abort the tick", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const userId = await makeUser(db);
+    const projAId = await seedProject(db, "acme/repo-a");
+    await seedApprovedIdea(db, projAId, userId, "Idea A");
+
+    const closeCalls: string[] = [];
+    const deps: WorkerDeps = {
+      generate: async () => ({ ok: true, taskKeys: [] }),
+      createIssues: async () => ({ created: [] }),
+      createBranches: async () => ({ created: [] }),
+      closeIssues: async (_d, pid) => {
+        closeCalls.push(pid);
+        throw new Error("close boom");
+      },
+      specMaterialize: async () => ({ requirementCount: 0, sha: "abc1234" }),
+      digest: async () => ({ generated: false, reason: "nothing new" }),
+    };
+
+    // The thrown error from closeIssues must be caught inside the step.
+    await assert.doesNotReject(() => tick(db, deps));
+    assert.deepEqual(closeCalls, [projAId], "close sweep invoked for the project");
   } finally {
     await close();
   }
