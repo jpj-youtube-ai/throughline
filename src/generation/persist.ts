@@ -1,6 +1,6 @@
-import { eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { ideas, requirements, tasks } from "../db/schema";
+import { ideas, requirements, tasks, prototypes, taskPrototypes } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { reconcileRequirementStatus } from "../requirements/lifecycle";
 import type { GenerationOutput } from "../schema";
@@ -98,6 +98,7 @@ export async function persistGeneration(
 
     const taskKeys: string[] = [];
     const touchedReqs = new Set<string>();
+    const protoLinks: { taskId: string; labels: string[] }[] = [];
     for (const t of input.output.tasks) {
       const reqKey = suggestedToMinted.get(t.requirement_key) ?? t.requirement_key;
       const requirementId = keyToReqId.get(reqKey);
@@ -105,7 +106,7 @@ export async function persistGeneration(
         throw new Error(`Task "${t.title}" references unknown requirement ${t.requirement_key}.`);
       }
       const taskKey = `TASK-${pad3(++taskMax)}`;
-      await tx.insert(tasks).values({
+      const [taskRow] = await tx.insert(tasks).values({
         key: taskKey,
         title: t.title,
         body: renderBody(t.body),
@@ -115,9 +116,23 @@ export async function persistGeneration(
         risk: t.risk,
         confidence: t.confidence,
         projectId,
-      });
+      }).returning({ id: tasks.id });
       taskKeys.push(taskKey);
       touchedReqs.add(requirementId);
+      if (t.prototypes.length) protoLinks.push({ taskId: taskRow.id, labels: t.prototypes });
+    }
+
+    if (protoLinks.length) {
+      const labelSet = new Set(protoLinks.flatMap((l) => l.labels));
+      const protoRows = projectId !== null
+        ? await tx.select({ id: prototypes.id, label: prototypes.label }).from(prototypes).where(and(eq(prototypes.projectId, projectId), inArray(prototypes.label, [...labelSet])))
+        : [];
+      const byLabel = new Map<string, string[]>();
+      for (const r of protoRows) byLabel.set(r.label, [...(byLabel.get(r.label) ?? []), r.id]);
+      const rows = protoLinks.flatMap((l) =>
+        [...new Set(l.labels.flatMap((lab) => byLabel.get(lab) ?? []))].map((prototypeId) => ({ taskId: l.taskId, prototypeId })),
+      );
+      if (rows.length) await tx.insert(taskPrototypes).values(rows);
     }
 
     await emitEvent(tx, {
@@ -186,9 +201,10 @@ export async function persistGenerationForRequirement(
     let taskMax = maxNumber(projectTaskKeys);
 
     const taskKeys: string[] = [];
+    const protoLinks: { taskId: string; labels: string[] }[] = [];
     for (const t of input.output.tasks) {
       const taskKey = `TASK-${pad3(++taskMax)}`;
-      await tx.insert(tasks).values({
+      const [taskRow] = await tx.insert(tasks).values({
         key: taskKey,
         title: t.title,
         body: renderBody(t.body),
@@ -197,8 +213,22 @@ export async function persistGenerationForRequirement(
         risk: t.risk,
         confidence: t.confidence,
         projectId,
-      });
+      }).returning({ id: tasks.id });
       taskKeys.push(taskKey);
+      if (t.prototypes.length) protoLinks.push({ taskId: taskRow.id, labels: t.prototypes });
+    }
+
+    if (protoLinks.length) {
+      const labelSet = new Set(protoLinks.flatMap((l) => l.labels));
+      const protoRows = projectId !== null
+        ? await tx.select({ id: prototypes.id, label: prototypes.label }).from(prototypes).where(and(eq(prototypes.projectId, projectId), inArray(prototypes.label, [...labelSet])))
+        : [];
+      const byLabel = new Map<string, string[]>();
+      for (const r of protoRows) byLabel.set(r.label, [...(byLabel.get(r.label) ?? []), r.id]);
+      const rows = protoLinks.flatMap((l) =>
+        [...new Set(l.labels.flatMap((lab) => byLabel.get(lab) ?? []))].map((prototypeId) => ({ taskId: l.taskId, prototypeId })),
+      );
+      if (rows.length) await tx.insert(taskPrototypes).values(rows);
     }
 
     await emitEvent(tx, {

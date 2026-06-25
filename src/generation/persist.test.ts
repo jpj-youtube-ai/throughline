@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { users, ideas, requirements, tasks, events, project } from "../db/schema";
+import { users, ideas, requirements, tasks, events, project, prototypes, taskPrototypes } from "../db/schema";
 import { persistGeneration } from "./persist";
 import type { GenerationOutput } from "../schema";
 
@@ -240,4 +240,21 @@ test("persistGeneration sets tasks.projectId from idea.projectId and numbers TAS
   } finally {
     await close();
   }
+});
+
+test("persistGeneration links a task to the prototype(s) it named", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projectId = await seedProject(db);
+    const ideaId = await seedApprovedIdea(db, projectId);
+    const [proto] = await db.insert(prototypes).values({ projectId, label: "Search page", html: "<h1>s</h1>" }).returning({ id: prototypes.id });
+    const output = { new_requirements: [{ key: "REQ-001", title: "Search", description: "d" }], tasks: [
+      { title: "Build search UI", requirement_key: "REQ-001", body: { pointers: ["x"], acceptance_check: "y" }, effort: 2, risk: "low" as const, confidence: 60, prototypes: ["Search page"] },
+      { title: "Indexer", requirement_key: "REQ-001", body: { pointers: ["x"], acceptance_check: "y" }, effort: 2, risk: "low" as const, confidence: 60, prototypes: [] },
+    ]};
+    await persistGeneration(db, { ideaId, output, model: "m", usage: null });
+    const links = await db.select().from(taskPrototypes);
+    assert.equal(links.length, 1, "only the frontend task links a prototype");
+    assert.equal(links[0].prototypeId, proto.id);
+  } finally { await close(); }
 });
