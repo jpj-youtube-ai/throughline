@@ -31,6 +31,26 @@ async function seedProj(db: Awaited<ReturnType<typeof createTestDb>>["db"]) {
   return p.id;
 }
 
+test("materializeSpec is a no-op for a project with no requirements (no commit/push/event)", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const pid = await seedProj(db); // no requirements seeded
+    let synced = false, committed = false, pushed = false;
+    const r = await materializeSpec(db, pid, {
+      syncRemote: async () => { synced = true; },
+      readFile: () => "",
+      commit: () => { committed = true; return { sha: "x" }; },
+      push: async () => { pushed = true; },
+    });
+    assert.equal(r.status, "already-materialized");
+    assert.equal(r.requirementCount, 0);
+    assert.equal(synced, false);
+    assert.equal(committed, false);
+    assert.equal(pushed, false);
+    assert.equal((await db.select().from(events).where(eq(events.type, "spec.materialized"))).length, 0);
+  } finally { await close(); }
+});
+
 test("materializeSpec is a no-op when the clone already matches (no fetch/commit/push/event)", async () => {
   const { db, close } = await createTestDb();
   try {

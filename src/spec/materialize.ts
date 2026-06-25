@@ -52,6 +52,14 @@ export async function materializeSpec(
   const push = deps.push ?? pushClone;
 
   const { content, requirementCount } = await buildSpecContent(db, proj.id);
+
+  // A project with no requirements has no spec to materialize — don't push an empty
+  // SPEC.md to the repo (the board view shows the empty state instead). Requirements
+  // are never deleted, so this only skips genuinely-fresh projects.
+  if (requirementCount === 0) {
+    return { status: "already-materialized", requirementCount: 0 };
+  }
+
   const specFile = path.join(proj.localClonePath, proj.specPath);
 
   // Fast no-op: we are the sole writer of SPEC.md, so the local file reflects the
