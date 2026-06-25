@@ -12,6 +12,7 @@ import {
   timestamp,
   unique,
   customType,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
@@ -125,10 +126,17 @@ export const prototypes = pgTable("prototypes", {
   projectId: uuid("project_id").notNull().references(() => project.id),
   label: text("label").notNull(),
   html: text("html").notNull(),
-  // Rendered-PNG cache (derived; regenerable, no event) — filled by the worker sweep.
-  image: bytea("image"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const taskPrototypes = pgTable(
+  "task_prototypes",
+  {
+    taskId: uuid("task_id").notNull().references(() => tasks.id, { onDelete: "cascade" }),
+    prototypeId: uuid("prototype_id").notNull().references(() => prototypes.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.taskId, t.prototypeId] })],
+);
 
 export const driftFlags = pgTable("drift_flags", {
   id: uuid("id").primaryKey().defaultRandom(),

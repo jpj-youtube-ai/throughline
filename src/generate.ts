@@ -75,6 +75,7 @@ async function main(): Promise<void> {
     userMessage,
     existingKeys: spec.existingKeys,
     nextNumber: spec.nextNumber,
+    prototypeLabels: [],
     maxRetries: cfg.maxRetries,
     thinking: cfg.thinking,
     onLog: (m) => log(cfg.verbose, m),

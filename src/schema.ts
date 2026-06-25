@@ -43,6 +43,11 @@ export const TaskSchema = z
       .min(0)
       .max(100)
       .describe("0–100: how sure you are the task as written is correct and complete."),
+    prototypes: z
+      .array(z.string())
+      .optional()
+      .default([])
+      .describe("Labels of the design prototype(s) this task builds against (from the provided list). Empty unless this is frontend work matching a prototype."),
   })
   .strict();
 
@@ -72,6 +77,7 @@ export type GenerationOutput = z.infer<typeof GenerationOutputSchema>;
 export interface SemanticContext {
   existingKeys: Set<string>;
   nextNumber: number;
+  prototypeLabels: Set<string>;
 }
 
 const REQ_RE = /^REQ-(\d{3})$/;
@@ -126,6 +132,11 @@ export function semanticErrors(out: GenerationOutput, ctx: SemanticContext): str
     }
     if (!t.body.acceptance_check.trim()) {
       errors.push(`${label}: body.acceptance_check is empty.`);
+    }
+    for (const proto of t.prototypes) {
+      if (!ctx.prototypeLabels.has(proto)) {
+        errors.push(`${label}: prototype "${proto}" is not one of the available design prototypes.`);
+      }
     }
   });
 

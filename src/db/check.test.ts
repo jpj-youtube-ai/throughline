@@ -29,11 +29,18 @@ async function pgliteQuery(ddl: string): Promise<{ query: (sql: string) => Promi
   };
 }
 
-// schemaSql() with the latest migration omitted — a live DB one migration behind.
+// schemaSql() with migration 0014 (task_prototypes) and later omitted — a live DB
+// that is missing the task_prototypes table. We pin to a specific known-additive
+// migration rather than "latest - 1" so DROP-COLUMN migrations at the tail do not
+// make the stale DB indistinguishable from canonical (diffSchemas only detects
+// missing additions, not extra columns).
 function staleSql(): string {
   const dir = path.resolve("drizzle");
-  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort();
-  const kept = files.slice(0, -1).map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
+  const files = fs.readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort()
+    .filter((f) => f < "0014_");
+  const kept = files.map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
   const appendOnly = fs.readFileSync(path.resolve("src/db/append-only.sql"), "utf8");
   return [...kept, appendOnly].join("\n");
 }

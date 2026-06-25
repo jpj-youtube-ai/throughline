@@ -54,6 +54,8 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
   const [proj] = await db.select().from(project).where(eq(project.id, idea.projectId)).limit(1);
   if (!proj) return { ok: false, failure: `project ${idea.projectId} not found (REQ-002)` };
 
+  const prototypeLabels = (await loadProjectPrototypes(db, proj.id)).map((p) => p.label);
+
   const specPath = path.join(proj.localClonePath, proj.specPath);
   const claudePath = path.join(proj.localClonePath, proj.claudeMdPath);
   const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, "utf8") : "";
@@ -62,8 +64,6 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
   const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements).where(eq(requirements.projectId, proj.id)));
   const taskSummary = await projectTaskSummary(db, proj.id);
   const recentCommits = await recentGitLog(proj.localClonePath);
-  const prototypeRows = await loadProjectPrototypes(db, proj.id);
-  const images = prototypeRows.map((p) => ({ mediaType: "image/png", data: p.image.toString("base64") }));
 
   const fixed =
     estimateTokens(specText) +
@@ -72,8 +72,7 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     estimateTokens(SYSTEM_PROMPT) +
     estimateTokens(taskSummary.join("\n")) +
     estimateTokens(recentCommits.join("\n")) +
-    800
-    + images.length * 1500;
+    800;
   const slice = buildSlice({
     repoPath: proj.localClonePath,
     excludeAbs: [specPath, claudePath],
@@ -93,6 +92,7 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     slice,
     taskSummary,
     recentCommits,
+    prototypeLabels,
   });
 
   const result = await generateTasks({
@@ -100,9 +100,9 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     userMessage,
     existingKeys: ctx.existingKeys,
     nextNumber: ctx.nextNumber,
+    prototypeLabels,
     maxRetries: 2,
     thinking: true,
-    images,
   });
 
   if (!result.ok) return { ok: false, failure: result.failure }; // no persist → no partial tasks
@@ -149,6 +149,8 @@ export async function generateForRequirement(
   const [proj] = await db.select().from(project).where(eq(project.id, req.projectId)).limit(1);
   if (!proj) return { ok: false, failure: `project ${req.projectId} not found (REQ-002)` };
 
+  const prototypeLabels = (await loadProjectPrototypes(db, proj.id)).map((p) => p.label);
+
   const specPath = path.join(proj.localClonePath, proj.specPath);
   const claudePath = path.join(proj.localClonePath, proj.claudeMdPath);
   const specText = fs.existsSync(specPath) ? fs.readFileSync(specPath, "utf8") : "";
@@ -158,8 +160,6 @@ export async function generateForRequirement(
   const seedWhy = req.description || req.title;
   const taskSummary = await projectTaskSummary(db, proj.id);
   const recentCommits = await recentGitLog(proj.localClonePath);
-  const prototypeRows = await loadProjectPrototypes(db, proj.id);
-  const images = prototypeRows.map((p) => ({ mediaType: "image/png", data: p.image.toString("base64") }));
 
   const fixed =
     estimateTokens(specText) +
@@ -168,8 +168,7 @@ export async function generateForRequirement(
     estimateTokens(SYSTEM_PROMPT) +
     estimateTokens(taskSummary.join("\n")) +
     estimateTokens(recentCommits.join("\n")) +
-    800
-    + images.length * 1500;
+    800;
   const slice = buildSliceFn({
     repoPath: proj.localClonePath,
     excludeAbs: [specPath, claudePath],
@@ -189,6 +188,7 @@ export async function generateForRequirement(
     slice,
     taskSummary,
     recentCommits,
+    prototypeLabels,
   });
 
   const result = await generate({
@@ -196,9 +196,9 @@ export async function generateForRequirement(
     userMessage,
     existingKeys: ctx.existingKeys,
     nextNumber: ctx.nextNumber,
+    prototypeLabels,
     maxRetries: 2,
     thinking: true,
-    images,
   });
   if (!result.ok) return { ok: false, failure: result.failure };
 

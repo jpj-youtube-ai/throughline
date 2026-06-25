@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb } from "../db/client";
 import { project, tasks, requirements } from "../db/schema";
-import { createBranch, createBranchesForClaimedTasks, kickoffComment, type GitRefClient, type CreateBranchFn, type CommentOnIssueFn } from "./branches";
+import { createBranch, createBranchesForClaimedTasks, kickoffComment, type GitRefClient, type CreateBranchFn, type CommentOnIssueFn, type CommitPrototypesFn } from "./branches";
+import { prototypes, taskPrototypes } from "../db/schema";
 
 const okClient: GitRefClient = {
   rest: {
@@ -192,4 +193,46 @@ test("kickoffComment includes the task key, the branch, and the PR-title convent
   assert.match(c, /task-007-do-the-thing/);
   assert.match(c, /\[TASK-007\]/); // the [TASK-NNN] PR title convention
   assert.match(c, /Claude Code/);
+});
+
+test("createBranchesForClaimedTasks calls commitPrototypesFn for a claimed task with a linked prototype", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { reqId, projId } = await seed(db);
+    const [t] = await db.insert(tasks).values({ key: "TASK-020", title: "proto task", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-020-proto-task", projectId: projId }).returning({ id: tasks.id });
+    const [proto] = await db.insert(prototypes).values({ projectId: projId, label: "My Prototype", html: "<h1>hello</h1>" }).returning({ id: prototypes.id });
+    await db.insert(taskPrototypes).values({ taskId: t.id, prototypeId: proto.id });
+
+    const committed: { branch: string; taskId: string }[] = [];
+    const fakeBranch: CreateBranchFn = async () => ({ created: true });
+    const fakeCommit: CommitPrototypesFn = async (_db, _iid, _repo, branch, taskId) => {
+      committed.push({ branch, taskId });
+    };
+
+    const { created } = await createBranchesForClaimedTasks(db, projId, fakeBranch, undefined as unknown as CommentOnIssueFn, fakeCommit);
+    assert.deepEqual(created, ["TASK-020"]);
+    assert.equal(committed.length, 1);
+    assert.equal(committed[0].branch, "task-020-proto-task");
+    assert.equal(committed[0].taskId, t.id);
+  } finally {
+    await close();
+  }
+});
+
+test("createBranchesForClaimedTasks still completes when commitPrototypesFn throws (best-effort)", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { reqId, projId } = await seed(db);
+    await db.insert(tasks).values({ key: "TASK-021", title: "throw task", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, claimState: "claimed", branchName: "task-021-throw-task", projectId: projId });
+
+    const fakeBranch: CreateBranchFn = async () => ({ created: true });
+    const throwingCommit: CommitPrototypesFn = async () => { throw new Error("contents api down"); };
+
+    const { created } = await createBranchesForClaimedTasks(db, projId, fakeBranch, undefined as unknown as CommentOnIssueFn, throwingCommit);
+    assert.deepEqual(created, ["TASK-021"]); // branch creation completed despite the commit failure
+    const [t1] = await db.select({ b: tasks.branchCreatedAt }).from(tasks).where(eq(tasks.key, "TASK-021"));
+    assert.ok(t1.b instanceof Date); // timestamp was set
+  } finally {
+    await close();
+  }
 });
