@@ -33,3 +33,7 @@ test("buildUserMessage shows a greenfield note when there is nothing built", () 
 test("SYSTEM_PROMPT carries the no-duplication rule", () => {
   assert.ok(/do not duplicate completed or in-flight work/i.test(SYSTEM_PROMPT));
 });
+
+test("SYSTEM_PROMPT carries the design-prototype grounding rule", () => {
+  assert.ok(/design[- ]prototype screenshots/i.test(SYSTEM_PROMPT));
+});

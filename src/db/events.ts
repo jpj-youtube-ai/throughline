@@ -26,7 +26,9 @@ export type EventType =
   | "drift.resolved"
   | "claude_md.synced"
   | "narrative.generated"
-  | "digest.generated";
+  | "digest.generated"
+  | "prototype.added"
+  | "prototype.removed";
 
 // Events that must carry a rationale (the "why") — SPEC §4.
 const RATIONALE_REQUIRED: ReadonlySet<EventType> = new Set([

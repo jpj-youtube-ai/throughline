@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { project, requirements, tasks } from "../db/schema";
+import { project, requirements, tasks, prototypes } from "../db/schema";
 import { createIssuesForTasks, closeIssuesForMergedTasks, type OpenIssueFn, type CloseIssueFn } from "./issues";
 
 async function seedProject(
@@ -261,4 +261,31 @@ test("closeIssuesForMergedTasks is project-scoped: another project's closed task
   } finally {
     await close();
   }
+});
+
+test("createIssuesForTasks appends a Design references section linking the project's prototypes", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { projId, reqId } = await seedProject(db, "acme/repo", 88);
+    const [proto] = await db.insert(prototypes).values({ projectId: projId, label: "Search page", html: "x", image: Buffer.from([1]) }).returning({ id: prototypes.id });
+    await db.insert(tasks).values({ key: "TASK-001", title: "A", body: "do it", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId });
+
+    const bodies: string[] = [];
+    const fakeOpen = async (_i: number, _r: string, _t: string, body: string) => { bodies.push(body); return { number: 1, url: "u" }; };
+    await createIssuesForTasks(db, projId, fakeOpen, { baseUrl: "https://b.test" });
+
+    assert.match(bodies[0], /## Design references/);
+    assert.match(bodies[0], new RegExp(`\\[Search page\\]\\(https://b\\.test/prototype/${proto.id}\\.png\\)`));
+  } finally { await close(); }
+});
+
+test("createIssuesForTasks omits Design references when the project has no prototypes", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { projId, reqId } = await seedProject(db, "acme/repo2", 89);
+    await db.insert(tasks).values({ key: "TASK-001", title: "A", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId });
+    const bodies: string[] = [];
+    await createIssuesForTasks(db, projId, async (_i, _r, _t, body) => { bodies.push(body); return { number: 1, url: "u" }; }, { baseUrl: "https://b.test" });
+    assert.doesNotMatch(bodies[0], /Design references/);
+  } finally { await close(); }
 });

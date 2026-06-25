@@ -9,6 +9,7 @@ import { matchPins } from "@/repoSlice";
 import { listConnectableRepos, bindAndClone, type ConnectableRepo } from "@/project/connect";
 import { PageHeader, Card, Pill, buttonClass, fieldClass } from "@/components/ui";
 import { SyncClaudeMdButton } from "@/components/sync-claude-md-button";
+import { DesignPrototypes } from "./prototypes";
 import { revalidatePath } from "next/cache";
 
 export const dynamic = "force-dynamic";
@@ -141,6 +142,9 @@ export default async function ConnectPage() {
           </ul>
         </section>
       )}
+
+      {/* Design prototypes */}
+      <DesignPrototypes />
 
       {/* Available repos to bind */}
       <section>

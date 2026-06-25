@@ -19,6 +19,18 @@ export interface GenerateTasksArgs {
   maxTokens?: number;
   client?: Anthropic; // defaults to createClient()
   onLog?: (msg: string) => void;
+  images?: { mediaType: string; data: string }[]; // prototype screenshots (REQ-030)
+}
+
+export function buildUserContent(
+  userMessage: string,
+  images: { mediaType: string; data: string }[],
+): Anthropic.ContentBlockParam[] {
+  const content: Anthropic.ContentBlockParam[] = [{ type: "text", text: userMessage }];
+  for (const img of images) {
+    content.push({ type: "image", source: { type: "base64", media_type: img.mediaType as "image/png", data: img.data } });
+  }
+  return content;
 }
 
 /**
@@ -31,7 +43,9 @@ export async function generateTasks(args: GenerateTasksArgs): Promise<GenerateTa
   const client = args.client ?? createClient();
   const log = args.onLog ?? (() => {});
   const maxTokens = args.maxTokens ?? 16000;
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: args.userMessage }];
+  const messages: Anthropic.MessageParam[] = [
+    { role: "user", content: buildUserContent(args.userMessage, args.images ?? []) },
+  ];
 
   let lastFailure = "unknown error";
   let usage: Usage = null;
