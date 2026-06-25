@@ -1,7 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { claimFromSpec, type ClaimState } from "./[key]/actions";
+import { claimFromSpec } from "./[key]/actions";
+import type { ClaimState } from "../tasks/actions";
 import { buttonClass } from "@/components/ui";
 
 export function SpecClaimButton({ taskId, reqKey }: { taskId: string; reqKey: string }) {

@@ -92,8 +92,6 @@ export async function generateRequirementDiagram(_prev: DiagramState, formData: 
   return { ok: true, html };
 }
 
-export type { ClaimState };
-
 // Claim a task from the spec-map requirement detail (REQ-010). Same claim domain
 // as the /tasks board (claimAndBranch); revalidates the spec routes so the detail
 // reflects the new claim.
