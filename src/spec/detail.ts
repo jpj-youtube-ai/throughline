@@ -10,7 +10,7 @@ export interface RequirementDetail {
   status: "planned" | "building" | "shipped";
   provenance: "imported" | "voted" | "drift";
   diagramHtml: string | null;
-  tasks: { key: string; title: string; githubStatus: "open" | "closed"; claimState: "unclaimed" | "claimed"; githubIssueUrl: string | null }[];
+  tasks: { id: string; key: string; title: string; githubStatus: "open" | "closed"; claimState: "unclaimed" | "claimed"; githubIssueUrl: string | null }[];
 }
 
 // One requirement + its tasks (for the spec detail drawer). null if the key is unknown.
@@ -24,7 +24,7 @@ export async function getRequirementDetail(db: Db, projectId: string, key: strin
   if (!req) return null;
 
   const taskRows = await db
-    .select({ key: tasks.key, title: tasks.title, githubStatus: tasks.githubStatus, claimState: tasks.claimState, githubIssueUrl: tasks.githubIssueUrl })
+    .select({ id: tasks.id, key: tasks.key, title: tasks.title, githubStatus: tasks.githubStatus, claimState: tasks.claimState, githubIssueUrl: tasks.githubIssueUrl })
     .from(tasks)
     .where(and(eq(tasks.requirementId, req.id), eq(tasks.projectId, projectId)))
     .orderBy(asc(tasks.key));
