@@ -47,6 +47,20 @@ export async function removePrototype(
   return { removed: true };
 }
 
+/** List prototypes for the /connect UI (REQ-030) — id, label, and whether the
+ *  PNG has been rendered, newest-first. */
+export async function listProjectPrototypes(
+  db: Db,
+  projectId: string,
+): Promise<{ id: string; label: string; rendered: boolean }[]> {
+  const rows = await db
+    .select({ id: prototypes.id, label: prototypes.label, image: prototypes.image })
+    .from(prototypes)
+    .where(eq(prototypes.projectId, projectId))
+    .orderBy(desc(prototypes.createdAt));
+  return rows.map((r) => ({ id: r.id, label: r.label, rendered: r.image !== null }));
+}
+
 /** The project's rendered prototypes for the generation context (REQ-030/008) —
  *  newest-first, rendered only, capped. */
 export async function loadProjectPrototypes(
