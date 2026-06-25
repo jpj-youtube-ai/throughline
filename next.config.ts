@@ -12,6 +12,15 @@ try {
 
 const nextConfig: NextConfig = {
   allowedDevOrigins,
+  experimental: {
+    serverActions: {
+      // Design-prototype HTML can be self-contained (inline CSS/JS/base64 images),
+      // so the default 1 MB server-action body limit rejected real uploads (REQ-030).
+      // Set above the 25 MB user-facing cap (client-guarded in PrototypeUploadForm)
+      // to leave room for the other form fields + multipart overhead.
+      bodySizeLimit: "30mb",
+    },
+  },
 };
 
 export default nextConfig;
