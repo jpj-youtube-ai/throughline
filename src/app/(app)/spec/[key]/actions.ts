@@ -10,6 +10,8 @@ import { activeProjectId } from "@/project/current";
 import { refreshProjectClone } from "@/project/refresh";
 import { getRequirementDetail } from "@/spec/detail";
 import { generateRequirementDiagramHtml } from "@/spec/diagram";
+import { claimAndBranch } from "@/tasks/claim-and-branch";
+import type { ClaimState } from "../../tasks/actions";
 
 export type GenState = { ok: true; taskKeys: string[] } | { ok: false; error: string } | null;
 
@@ -71,4 +73,25 @@ export async function generateRequirementDiagram(_prev: DiagramState, formData: 
   revalidatePath("/spec");
   revalidatePath("/dashboard");
   return { ok: true, html };
+}
+
+export type { ClaimState };
+
+// Claim a task from the spec-map requirement detail (REQ-010). Same claim domain
+// as the /tasks board (claimAndBranch); revalidates the spec routes so the detail
+// reflects the new claim.
+export async function claimFromSpec(_prev: ClaimState, formData: FormData): Promise<ClaimState> {
+  const session = await auth();
+  if (!session?.user?.id) return { ok: false, error: "Not signed in." };
+  const taskId = String(formData.get("taskId"));
+  const key = String(formData.get("key") ?? "");
+  const db = getDb();
+
+  const { claimed, branchCreated } = await claimAndBranch(db, taskId, session.user.id);
+  revalidatePath("/spec");
+  revalidatePath("/dashboard");
+  revalidatePath("/tasks");
+  if (key) revalidatePath(`/spec/${key}`);
+  if (!claimed) return { ok: false, error: "Task is already claimed." };
+  return { ok: true, branchCreated };
 }
