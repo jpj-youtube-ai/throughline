@@ -60,7 +60,7 @@ export async function recentGitLog(repoPath: string, opts: { limit?: number } = 
       stdio: ["ignore", "pipe", "ignore"],
     });
     let out = "";
-    p.stdout.on("data", (d) => {
+    p.stdout?.on("data", (d: Buffer) => {
       out += d.toString();
     });
     p.on("error", () => resolve([]));
