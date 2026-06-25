@@ -1,6 +1,6 @@
 import { and, eq, isNull, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { tasks, project, prototypes } from "../db/schema";
+import { tasks, project } from "../db/schema";
 import { openIssue as realOpenIssue, closeIssue as realCloseIssue } from "./app";
 import { listProjects } from "../project/list";
 import { generatePreviewHtml } from "../preview/generate";
@@ -59,14 +59,6 @@ export async function createIssuesForTasks(
   const renderPng = previewDeps.renderPng ?? renderHtmlToPng;
   const baseUrl = previewDeps.baseUrl ?? process.env.PUBLIC_BASE_URL;
 
-  let designRefs = "";
-  if (baseUrl) {
-    const protos = await db.select({ id: prototypes.id, label: prototypes.label }).from(prototypes).where(eq(prototypes.projectId, resolvedProjectId));
-    if (protos.length) {
-      designRefs = "\n\n## Design references\n" + protos.map((p) => `- [${p.label}](${baseUrl}/prototype/${p.id}.png)`).join("\n");
-    }
-  }
-
   const created: string[] = [];
   for (const t of pending) {
     let bodyPrefix = "";
@@ -82,7 +74,7 @@ export async function createIssuesForTasks(
         console.error(`[issues] preview failed for ${t.key}:`, e instanceof Error ? e.message : e);
       }
     }
-    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, bodyPrefix + t.body + designRefs);
+    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, bodyPrefix + t.body);
     await db
       .update(tasks)
       .set({ githubIssueNumber: issue.number, githubIssueUrl: issue.url, updatedAt: new Date() })

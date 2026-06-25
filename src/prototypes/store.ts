@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { prototypes } from "../db/schema";
 import { emitEvent } from "../db/events";
@@ -47,32 +47,14 @@ export async function removePrototype(
   return { removed: true };
 }
 
-/** List prototypes for the /connect UI (REQ-030) — id, label, and whether the
- *  PNG has been rendered, newest-first. */
-export async function listProjectPrototypes(
-  db: Db,
-  projectId: string,
-): Promise<{ id: string; label: string; rendered: boolean }[]> {
-  const rows = await db
-    .select({ id: prototypes.id, label: prototypes.label, rendered: sql<boolean>`${prototypes.image} is not null` })
-    .from(prototypes)
-    .where(eq(prototypes.projectId, projectId))
-    .orderBy(desc(prototypes.createdAt));
-  return rows.map((r) => ({ id: r.id, label: r.label, rendered: r.rendered }));
-}
-
-/** The project's rendered prototypes for the generation context (REQ-030/008) —
- *  newest-first, rendered only, capped. */
+/** Load prototypes for a project (REQ-030) — id and label only, newest-first. */
 export async function loadProjectPrototypes(
   db: Db,
   projectId: string,
-  opts: { limit?: number } = {},
-): Promise<{ id: string; label: string; image: Buffer }[]> {
-  const rows = await db
-    .select({ id: prototypes.id, label: prototypes.label, image: prototypes.image })
+): Promise<{ id: string; label: string }[]> {
+  return db
+    .select({ id: prototypes.id, label: prototypes.label })
     .from(prototypes)
-    .where(and(eq(prototypes.projectId, projectId), isNotNull(prototypes.image)))
-    .orderBy(desc(prototypes.createdAt))
-    .limit(opts.limit ?? 6);
-  return rows.map((r) => ({ id: r.id, label: r.label, image: Buffer.from(r.image as Uint8Array) }));
+    .where(eq(prototypes.projectId, projectId))
+    .orderBy(desc(prototypes.createdAt));
 }

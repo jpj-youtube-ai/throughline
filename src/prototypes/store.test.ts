@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
 import { project, prototypes, events } from "../db/schema";
 import { addPrototype, removePrototype, loadProjectPrototypes } from "./store";
-import { getPrototypePng } from "./serve";
 
 async function seedProject(db: Db, repo: string, inst: number): Promise<string> {
   const [p] = await db.insert(project).values({ repoFullName: repo, installationId: inst, defaultBranch: "main", localClonePath: "/x" }).returning({ id: project.id });
@@ -39,34 +38,19 @@ test("removePrototype deletes and emits prototype.removed in one tx", async () =
   } finally { await close(); }
 });
 
-test("loadProjectPrototypes returns rendered ones only, newest-first, capped + scoped", async () => {
+test("loadProjectPrototypes returns id+label rows for the project, newest-first, no image, no cap", async () => {
   const { db, close } = await createTestDb();
   try {
     const a = await seedProject(db, "a/alpha", 1);
     const b = await seedProject(db, "a/beta", 2);
-    const png = Buffer.from([1, 2, 3]);
-    // a: one rendered (old), one rendered (new), one unrendered
-    await db.insert(prototypes).values({ projectId: a, label: "A-old", html: "x", image: png, createdAt: new Date("2026-01-01T00:00:00Z") });
-    await db.insert(prototypes).values({ projectId: a, label: "A-new", html: "x", image: png, createdAt: new Date("2026-01-02T00:00:00Z") });
-    await db.insert(prototypes).values({ projectId: a, label: "A-unrendered", html: "x", createdAt: new Date("2026-01-03T00:00:00Z") });
-    await db.insert(prototypes).values({ projectId: b, label: "B", html: "x", image: png });
+    // a: three rows (two with image column set, one without) — all should be returned
+    await db.insert(prototypes).values({ projectId: a, label: "A-old", html: "x", createdAt: new Date("2026-01-01T00:00:00Z") });
+    await db.insert(prototypes).values({ projectId: a, label: "A-new", html: "x", createdAt: new Date("2026-01-02T00:00:00Z") });
+    await db.insert(prototypes).values({ projectId: a, label: "A-third", html: "x", createdAt: new Date("2026-01-03T00:00:00Z") });
+    await db.insert(prototypes).values({ projectId: b, label: "B", html: "x" });
 
     const got = await loadProjectPrototypes(db, a);
-    assert.deepEqual(got.map((g) => g.label), ["A-new", "A-old"], "rendered only, newest-first, no B leakage");
-    assert.ok(Buffer.isBuffer(got[0].image));
-
-    const capped = await loadProjectPrototypes(db, a, { limit: 1 });
-    assert.equal(capped.length, 1);
-  } finally { await close(); }
-});
-
-test("getPrototypePng returns the stored PNG, null for a bad/absent id", async () => {
-  const { db, close } = await createTestDb();
-  try {
-    const pid = await seedProject(db, "a/b", 1);
-    const png = Buffer.from([9, 9, 9]);
-    const [row] = await db.insert(prototypes).values({ projectId: pid, label: "x", html: "x", image: png }).returning({ id: prototypes.id });
-    assert.deepEqual(await getPrototypePng(db, row.id), png);
-    assert.equal(await getPrototypePng(db, "not-a-uuid"), null);
+    assert.deepEqual(got.map((g) => g.label), ["A-third", "A-new", "A-old"], "all three, newest-first, no B leakage");
+    assert.ok(got.every((g) => "id" in g && "label" in g && !("image" in g)), "only id+label fields");
   } finally { await close(); }
 });

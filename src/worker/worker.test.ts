@@ -48,7 +48,6 @@ test("tick iterates all projects: approved ideas from each project are generated
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
-      renderPrototypes: async () => ({ rendered: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -94,7 +93,6 @@ test("tick scopes approved-idea query per project: an idea from project A is not
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
-      renderPrototypes: async () => ({ rendered: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -135,7 +133,6 @@ test("tick per-project: a step failure in one project does not abort processing 
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
-      renderPrototypes: async () => ({ rendered: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -167,7 +164,6 @@ test("tick runs the close-issues sweep per project, and a failure in it does not
         closeCalls.push(pid);
         throw new Error("close boom");
       },
-      renderPrototypes: async () => ({ rendered: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -200,7 +196,6 @@ test("tick refreshes each project's clone before generating; a refresh failure d
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
-      renderPrototypes: async () => ({ rendered: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -223,7 +218,6 @@ test("tick materializes every project each tick, even when nothing was generated
       createIssues: async () => ({ created: [] }),
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
-      renderPrototypes: async () => ({ rendered: [] }),
       specMaterialize: async (_d, pid) => { materializeCalls.push(pid); return { status: "already-materialized" as const, requirementCount: 0 }; },
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
@@ -232,22 +226,3 @@ test("tick materializes every project each tick, even when nothing was generated
   } finally { await close(); }
 });
 
-test("tick renders prototypes for each project each tick", async () => {
-  const { db, close } = await createTestDb();
-  try {
-    const projAId = await seedProject(db, "acme/repo-a");
-    const calls: string[] = [];
-    const deps: WorkerDeps = {
-      refreshClone: async () => {},
-      generate: async () => ({ ok: true, taskKeys: [] }),
-      createIssues: async () => ({ created: [] }),
-      createBranches: async () => ({ created: [] }),
-      closeIssues: async () => ({ closed: [] }),
-      renderPrototypes: async (_d, pid) => { calls.push(pid); return { rendered: [] }; },
-      specMaterialize: async () => ({ status: "already-materialized", requirementCount: 0 }),
-      digest: async () => ({ generated: false, reason: "nothing new" }),
-    };
-    await tick(db, deps);
-    assert.deepEqual(calls, [projAId]);
-  } finally { await close(); }
-});

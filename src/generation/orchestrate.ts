@@ -62,8 +62,6 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
   const ctx = reqContextFromDb(await db.select({ key: requirements.key, title: requirements.title }).from(requirements).where(eq(requirements.projectId, proj.id)));
   const taskSummary = await projectTaskSummary(db, proj.id);
   const recentCommits = await recentGitLog(proj.localClonePath);
-  const prototypeRows = await loadProjectPrototypes(db, proj.id);
-  const images = prototypeRows.map((p) => ({ mediaType: "image/png", data: p.image.toString("base64") }));
 
   const fixed =
     estimateTokens(specText) +
@@ -72,8 +70,7 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     estimateTokens(SYSTEM_PROMPT) +
     estimateTokens(taskSummary.join("\n")) +
     estimateTokens(recentCommits.join("\n")) +
-    800
-    + images.length * 1500;
+    800;
   const slice = buildSlice({
     repoPath: proj.localClonePath,
     excludeAbs: [specPath, claudePath],
@@ -102,7 +99,6 @@ export async function generateForApprovedIdea(db: Db, ideaId: string): Promise<G
     nextNumber: ctx.nextNumber,
     maxRetries: 2,
     thinking: true,
-    images,
   });
 
   if (!result.ok) return { ok: false, failure: result.failure }; // no persist → no partial tasks
@@ -158,8 +154,6 @@ export async function generateForRequirement(
   const seedWhy = req.description || req.title;
   const taskSummary = await projectTaskSummary(db, proj.id);
   const recentCommits = await recentGitLog(proj.localClonePath);
-  const prototypeRows = await loadProjectPrototypes(db, proj.id);
-  const images = prototypeRows.map((p) => ({ mediaType: "image/png", data: p.image.toString("base64") }));
 
   const fixed =
     estimateTokens(specText) +
@@ -168,8 +162,7 @@ export async function generateForRequirement(
     estimateTokens(SYSTEM_PROMPT) +
     estimateTokens(taskSummary.join("\n")) +
     estimateTokens(recentCommits.join("\n")) +
-    800
-    + images.length * 1500;
+    800;
   const slice = buildSliceFn({
     repoPath: proj.localClonePath,
     excludeAbs: [specPath, claudePath],
@@ -198,7 +191,6 @@ export async function generateForRequirement(
     nextNumber: ctx.nextNumber,
     maxRetries: 2,
     thinking: true,
-    images,
   });
   if (!result.ok) return { ok: false, failure: result.failure };
 
