@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { users, ideas, events, project } from "../db/schema";
+import { users, ideas, events, project, ideaPhotos } from "../db/schema";
 import { submitIdea } from "./submit";
 
 async function makeUser(db: Db): Promise<string> {
@@ -105,4 +106,22 @@ test("submitIdea rejects an empty title and an out-of-range score", async () => 
   } finally {
     await close();
   }
+});
+
+test("submitIdea stores photos and records photo_count on idea.submitted, in one tx", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    await seedProject(db);
+    const authorId = await makeUser(db);
+    const png = Buffer.from([1, 2, 3]);
+    const { id } = await submitIdea(db, { title: "Bug", why: "see shots", authorId, photos: [{ mediaType: "image/png", data: png }] });
+
+    const photos = await db.select().from(ideaPhotos).where(eq(ideaPhotos.ideaId, id));
+    assert.equal(photos.length, 1);
+    assert.deepEqual(Buffer.from(photos[0].image as Uint8Array), png);
+    assert.equal(photos[0].mediaType, "image/png");
+
+    const [ev] = await db.select().from(events).where(eq(events.type, "idea.submitted"));
+    assert.equal((ev.payload as { photo_count: number }).photo_count, 1);
+  } finally { await close(); }
 });
