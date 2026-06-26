@@ -7,6 +7,7 @@ import { generateForApprovedIdea, type GenerateForIdeaResult } from "../generati
 import { createIssuesForTasks, closeIssuesForMergedTasks, type CreateIssuesResult, type CloseIssuesResult } from "../github/issues";
 import { createBranchesForClaimedTasks } from "../github/branches";
 import { materializeSpec, type MaterializeResult } from "../spec/materialize";
+import { materializeNarrativeIfRequested } from "../narrative/regen";
 import { generateDigest, type GenerateResult } from "../digest/send";
 import { listProjects } from "../project/list";
 import { refreshProjectClone } from "../project/refresh";
@@ -20,6 +21,7 @@ export interface WorkerDeps {
   createBranches?: (db: Db, projectId: string) => Promise<{ created: string[] }>;
   closeIssues?: (db: Db, projectId: string) => Promise<CloseIssuesResult>;
   specMaterialize?: (db: Db, projectId: string) => Promise<MaterializeResult>;
+  regenNarrative?: (db: Db, projectId: string) => Promise<{ regenerated: boolean }>;
   digest?: (db: Db, opts: { projectId: string }) => Promise<GenerateResult>;
 }
 
@@ -41,6 +43,7 @@ export async function tickForProject(
     createBranches = (d, pid) => createBranchesForClaimedTasks(d, pid),
     closeIssues = (d, pid) => closeIssuesForMergedTasks(d, pid),
     specMaterialize = (d, pid) => materializeSpec(d, pid),
+    regenNarrative = (d, pid) => materializeNarrativeIfRequested(d, pid),
     digest = (d, opts) => generateDigest(d, opts),
   } = deps;
 
@@ -109,6 +112,16 @@ export async function tickForProject(
     }
   } catch (e) {
     console.error(`[worker][${proj.id}] spec materialization skipped:`, formatError(e));
+  }
+
+  // Regenerate this project's narrative only when one was requested (REQ-016).
+  // The LLM work (narrative + roadmap, ~minute) runs here, off the web request
+  // path. Best-effort: a failure is logged; the request stays pending and retries.
+  try {
+    const r = await regenNarrative(db, proj.id);
+    if (r.regenerated) console.error(`[worker][${proj.id}] narrative regenerated`);
+  } catch (e) {
+    console.error(`[worker][${proj.id}] narrative regen skipped:`, formatError(e));
   }
 
   // Generate digest for this project if due (REQ-026).

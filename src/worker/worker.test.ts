@@ -49,6 +49,7 @@ test("tick iterates all projects: approved ideas from each project are generated
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
+      regenNarrative: async () => ({ regenerated: false }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
 
@@ -94,6 +95,7 @@ test("tick scopes approved-idea query per project: an idea from project A is not
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
+      regenNarrative: async () => ({ regenerated: false }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
 
@@ -134,6 +136,7 @@ test("tick per-project: a step failure in one project does not abort processing 
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
+      regenNarrative: async () => ({ regenerated: false }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
 
@@ -165,6 +168,7 @@ test("tick runs the close-issues sweep per project, and a failure in it does not
         throw new Error("close boom");
       },
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
+      regenNarrative: async () => ({ regenerated: false }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
 
@@ -197,6 +201,7 @@ test("tick refreshes each project's clone before generating; a refresh failure d
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
       specMaterialize: async () => ({ status: "already-materialized" as const, requirementCount: 0 }),
+      regenNarrative: async () => ({ regenerated: false }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
 
@@ -219,10 +224,31 @@ test("tick materializes every project each tick, even when nothing was generated
       createBranches: async () => ({ created: [] }),
       closeIssues: async () => ({ closed: [] }),
       specMaterialize: async (_d, pid) => { materializeCalls.push(pid); return { status: "already-materialized" as const, requirementCount: 0 }; },
+      regenNarrative: async () => ({ regenerated: false }),
       digest: async () => ({ generated: false, reason: "nothing new" }),
     };
     await tick(db, deps);
     assert.deepEqual(materializeCalls, [projAId], "materialize runs each tick regardless of generation");
+  } finally { await close(); }
+});
+
+test("tick regenerates a project's narrative only when requested", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const projAId = await seedProject(db, "acme/repo-a");
+    const calls: string[] = [];
+    const deps: WorkerDeps = {
+      refreshClone: async () => {},
+      generate: async () => ({ ok: true, taskKeys: [] }),
+      createIssues: async () => ({ created: [] }),
+      createBranches: async () => ({ created: [] }),
+      closeIssues: async () => ({ closed: [] }),
+      specMaterialize: async () => ({ status: "already-materialized", requirementCount: 0 }),
+      regenNarrative: async (_d, pid) => { calls.push(pid); return { regenerated: false }; },
+      digest: async () => ({ generated: false, reason: "nothing new" }),
+    };
+    await tick(db, deps);
+    assert.deepEqual(calls, [projAId]);
   } finally { await close(); }
 });
 
