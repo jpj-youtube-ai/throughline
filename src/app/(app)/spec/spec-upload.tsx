@@ -4,18 +4,22 @@
 import { useActionState } from "react";
 import { importSpec, type ImportState } from "./actions";
 import { Card, Field, fieldClass, buttonClass } from "@/components/ui";
+import { BranchSpecMerge } from "./branch-spec-merge";
 
 export function SpecUpload({ alreadyImported, count }: { alreadyImported: boolean; count: number }) {
   const [state, action, pending] = useActionState<ImportState, FormData>(importSpec, null);
 
   if (alreadyImported) {
     return (
-      <Card className="mb-8 p-4">
-        <p className="text-sm text-graphite">
-          Genesis spec imported — <span className="text-ink">{count}</span> requirements. Import is a one-time bootstrap; further
-          requirements come from approved ideas or resolved drift.
-        </p>
-      </Card>
+      <div className="mb-8 grid gap-0">
+        <Card className="p-4">
+          <p className="text-sm text-graphite">
+            Genesis spec imported — <span className="text-ink">{count}</span> requirements. Import is a one-time bootstrap; further
+            requirements come from approved ideas, resolved drift, or a branch-spec merge below.
+          </p>
+        </Card>
+        <BranchSpecMerge />
+      </div>
     );
   }
 

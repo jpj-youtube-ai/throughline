@@ -9,6 +9,7 @@ export type EventType =
   | "requirement.declared"
   | "requirement.status_changed"
   | "requirement.amended"
+  | "requirement.merge_skipped"
   | "idea.parked"
   | "idea.graduated"
   | "idea.submitted"

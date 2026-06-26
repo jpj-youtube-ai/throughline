@@ -21,6 +21,7 @@ const VERB: Record<string, { verb: string; kind?: NodeKind }> = {
   "project.genesis_imported": { verb: "imported the genesis spec" },
   "project.bound": { verb: "bound the repository" },
   "requirement.declared": { verb: "declared" },
+  "requirement.merge_skipped": { verb: "skipped (already on the board)" },
   "idea.submitted": { verb: "submitted" },
   "idea.graduated": { verb: "opened for voting" },
   "idea.voted": { verb: "voted on" },
