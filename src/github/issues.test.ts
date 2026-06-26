@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { eq } from "drizzle-orm";
 import { createTestDb, type Db } from "../db/client";
-import { project, requirements, tasks, prototypes, taskPrototypes } from "../db/schema";
+import { project, requirements, tasks, prototypes, taskPrototypes, users, ideas, ideaPhotos } from "../db/schema";
 import { createIssuesForTasks, closeIssuesForMergedTasks, type OpenIssueFn, type CloseIssueFn } from "./issues";
 
 async function seedProject(
@@ -261,6 +261,25 @@ test("closeIssuesForMergedTasks is project-scoped: another project's closed task
   } finally {
     await close();
   }
+});
+
+test("createIssuesForTasks embeds the origin idea's photos on the issue", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const { projId, reqId } = await seedProject(db, "acme/repo", 11);
+    const [u] = await db.insert(users).values({ githubId: 1, githubLogin: "u", name: "u" }).returning({ id: users.id });
+    const [idea] = await db.insert(ideas).values({ title: "Bug", why: "w", authorId: u.id, state: "approved", projectId: projId }).returning({ id: ideas.id });
+    const [photo] = await db.insert(ideaPhotos).values({ ideaId: idea.id, image: Buffer.from([1]), mediaType: "image/png" }).returning({ id: ideaPhotos.id });
+    await db.insert(tasks).values({ key: "TASK-001", title: "Fix", body: "b", requirementId: reqId, originIdeaId: idea.id, effort: 1, risk: "low", confidence: 50, projectId: projId });
+    await db.insert(tasks).values({ key: "TASK-002", title: "NoIdea", body: "b", requirementId: reqId, effort: 1, risk: "low", confidence: 50, projectId: projId });
+
+    const bodies: Record<string, string> = {};
+    await createIssuesForTasks(db, projId, async (_i, _r, title, body) => { bodies[title.split(" ")[0]] = body; return { number: 1, url: "u" }; }, { baseUrl: "https://b.test" });
+
+    assert.match(bodies["[TASK-001]"], /## Attached photos/);
+    assert.match(bodies["[TASK-001]"], new RegExp(`!\\[photo\\]\\(https://b\\.test/idea-photo/${photo.id}\\)`));
+    assert.doesNotMatch(bodies["[TASK-002]"], /Attached photos/);
+  } finally { await close(); }
 });
 
 test("createIssuesForTasks adds a Design prototype section only for tasks with prototypes", async () => {

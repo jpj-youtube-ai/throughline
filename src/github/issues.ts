@@ -7,6 +7,7 @@ import { generatePreviewHtml } from "../preview/generate";
 import { renderHtmlToPng } from "../preview/render";
 import { loadTaskPrototypes } from "@/prototypes/store";
 import { slugify } from "@/prototypes/slug";
+import { loadIdeaPhotos } from "@/ideas/photos";
 
 export type OpenIssueFn = (
   installationId: number,
@@ -53,13 +54,26 @@ export async function createIssuesForTasks(
   if (!proj) throw new Error(`Project ${resolvedProjectId} not found (REQ-002).`);
 
   const pending = await db
-    .select({ id: tasks.id, key: tasks.key, title: tasks.title, body: tasks.body })
+    .select({ id: tasks.id, key: tasks.key, title: tasks.title, body: tasks.body, originIdeaId: tasks.originIdeaId })
     .from(tasks)
     .where(and(isNull(tasks.githubIssueNumber), eq(tasks.projectId, resolvedProjectId)));
 
   const generatePreview = previewDeps.generatePreview ?? generatePreviewHtml;
   const renderPng = previewDeps.renderPng ?? renderHtmlToPng;
   const baseUrl = previewDeps.baseUrl ?? process.env.PUBLIC_BASE_URL;
+
+  const photoSectionByIdea = new Map<string, string>();
+  async function ideaPhotoSection(ideaId: string): Promise<string> {
+    if (!baseUrl) return "";
+    const cached = photoSectionByIdea.get(ideaId);
+    if (cached !== undefined) return cached;
+    const photos = await loadIdeaPhotos(db, ideaId);
+    const section = photos.length
+      ? "\n\n## Attached photos\n" + photos.map((p) => `![photo](${baseUrl}/idea-photo/${p.id})`).join("\n")
+      : "";
+    photoSectionByIdea.set(ideaId, section);
+    return section;
+  }
 
   const created: string[] = [];
   for (const t of pending) {
@@ -81,7 +95,8 @@ export async function createIssuesForTasks(
       ? "\n\n## Design prototype\nBuild the UI to match the design prototype(s) committed to this task's branch:\n" +
         protos.map((p) => `- **${p.label}** → \`prototypes/${slugify(p.label)}.html\``).join("\n")
       : "";
-    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, bodyPrefix + t.body + designSection);
+    const photoSection = t.originIdeaId ? await ideaPhotoSection(t.originIdeaId) : "";
+    const issue = await openIssue(proj.installationId, proj.repoFullName, `[${t.key}] ${t.title}`, bodyPrefix + t.body + designSection + photoSection);
     await db
       .update(tasks)
       .set({ githubIssueNumber: issue.number, githubIssueUrl: issue.url, updatedAt: new Date() })
