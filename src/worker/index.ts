@@ -117,6 +117,10 @@ export async function tickForProject(
   // Regenerate this project's narrative only when one was requested (REQ-016).
   // The LLM work (narrative + roadmap, ~minute) runs here, off the web request
   // path. Best-effort: a failure is logged; the request stays pending and retries.
+  // Accepted limitations (bounded by manual requests at this scale): a persistently
+  // failing request re-runs (~a minute of LLM) each tick until it succeeds or a newer
+  // narrative lands; and this is the one genuinely slow per-project step, so a pending
+  // narrative delays the other projects' sweeps in `tick()` (projects run sequentially).
   try {
     const r = await regenNarrative(db, proj.id);
     if (r.regenerated) console.error(`[worker][${proj.id}] narrative regenerated`);
