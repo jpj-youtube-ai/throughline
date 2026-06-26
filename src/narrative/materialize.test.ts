@@ -19,13 +19,65 @@ async function seedNarratableProject(db: Db): Promise<{ projectId: string }> {
   return { projectId: proj.id };
 }
 
-test("materializeNarrative throws on an empty log", async () => {
+async function seedProjectWithEvent(db: Db, repoFullName: string): Promise<{ projectId: string }> {
+  const installationId = Math.floor(Math.random() * 100000);
+  const [proj] = await db
+    .insert(project)
+    .values({ repoFullName, defaultBranch: "main", installationId, localClonePath: `/${repoFullName.replace("/", "-")}` })
+    .returning({ id: project.id });
+  const githubId = Math.floor(Math.random() * 100000);
+  const [u] = await db
+    .insert(users)
+    .values({ githubId, githubLogin: repoFullName.replace("/", "-") })
+    .returning({ id: users.id });
+  // Use idea.approved (requires rationale) with a unique rationale so the digest can be inspected
+  await db.transaction((tx) =>
+    emitEvent(tx, {
+      type: "idea.approved",
+      subjectType: "idea",
+      actorId: u.id,
+      payload: {},
+      rationale: `approved in ${repoFullName}`,
+      projectId: proj.id,
+    }),
+  );
+  return { projectId: proj.id };
+}
+
+test("materializeNarrative is a no-op (no throw, no write) when project has no events", async () => {
   const { db, close } = await createTestDb();
   try {
-    await assert.rejects(
-      materializeNarrative(db, async () => ({ ok: true, content: { chapters: [] } })),
-      /no events/i,
-    );
+    const [p] = await db
+      .insert(project)
+      .values({ repoFullName: "a/empty", installationId: 9, defaultBranch: "main", localClonePath: "/x" })
+      .returning({ id: project.id });
+    const res = await materializeNarrative(db, p.id, async () => ({ ok: true as const, content: { chapters: [] } }), { generateRoadmap: async () => null });
+    assert.deepEqual(res, { eventCount: 0, chapters: 0 });
+    assert.equal((await db.select().from(narratives).where(eq(narratives.projectId, p.id))).length, 0);
+  } finally {
+    await close();
+  }
+});
+
+test("materializeNarrative is scoped to its project (no cross-project events)", async () => {
+  const { db, close } = await createTestDb();
+  try {
+    const a = await seedProjectWithEvent(db, "a/alpha");
+    const b = await seedProjectWithEvent(db, "a/beta");
+    let capturedDigest = "";
+    const fakeGen = async (digest: string) => {
+      capturedDigest = digest;
+      return { ok: true as const, content: { chapters: [{ heading: "h", prose: "p", refs: [] }] } };
+    };
+    await materializeNarrative(db, a.projectId, fakeGen, { generateRoadmap: async () => "<html></html>" });
+    // narrative row is on project a
+    const rows = await db.select().from(narratives).where(eq(narratives.projectId, a.projectId));
+    assert.equal(rows.length, 1);
+    // digest contains a's rationale marker, not b's (rationale = "approved in a/alpha" vs "approved in a/beta")
+    assert.ok(capturedDigest.includes("a/alpha"), `digest should contain a/alpha rationale; got: ${capturedDigest}`);
+    assert.ok(!capturedDigest.includes("a/beta"), `digest must not contain a/beta rationale; got: ${capturedDigest}`);
+    // no row on project b
+    assert.equal((await db.select().from(narratives).where(eq(narratives.projectId, b.projectId))).length, 0);
   } finally {
     await close();
   }
@@ -56,7 +108,7 @@ test("materializeNarrative builds a grounded digest, stores chapters, emits narr
       return { ok: true as const, content: { chapters: [{ heading: "Genesis", prose: "It began with the log.", refs: ["REQ-003"] }] } };
     };
 
-    const res = await materializeNarrative(db, fakeGen, { generateRoadmap: async () => null });
+    const res = await materializeNarrative(db, proj.id, fakeGen, { generateRoadmap: async () => null });
     assert.equal(res.chapters, 1);
     assert.equal(res.eventCount, 2);
 
@@ -86,6 +138,7 @@ test("materializeNarrative stores roadmap_html when generation succeeds", async 
     let roadmapInput: unknown = null;
     const r = await materializeNarrative(
       db,
+      ctx.projectId,
       async () => ({ ok: true, content: { chapters: [{ heading: "H", prose: "p", refs: [] }] } }),
       { generateRoadmap: async (input) => { roadmapInput = input; return "<html><body>roadmap</body></html>"; } },
     );
@@ -104,6 +157,7 @@ test("materializeNarrative still stores the narrative when the roadmap returns n
     const ctx = await seedNarratableProject(db);
     const r = await materializeNarrative(
       db,
+      ctx.projectId,
       async () => ({ ok: true, content: { chapters: [{ heading: "H", prose: "p", refs: [] }] } }),
       { generateRoadmap: async () => null },
     );
@@ -121,6 +175,7 @@ test("materializeNarrative still stores the narrative when the roadmap generator
     const ctx = await seedNarratableProject(db);
     const r = await materializeNarrative(
       db,
+      ctx.projectId,
       async () => ({ ok: true, content: { chapters: [{ heading: "H", prose: "p", refs: [] }] } }),
       { generateRoadmap: async () => { throw new Error("roadmap boom"); } },
     );

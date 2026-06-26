@@ -26,6 +26,7 @@ export type EventType =
   | "drift.resolved"
   | "claude_md.synced"
   | "narrative.generated"
+  | "narrative.requested"
   | "digest.generated"
   | "prototype.added"
   | "prototype.removed";

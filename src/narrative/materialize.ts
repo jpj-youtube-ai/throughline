@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { narratives, requirements } from "../db/schema";
 import { emitEvent } from "../db/events";
-import { getActiveProjectId } from "../project/active";
 import { listActivity } from "../events/feed";
 import { generateNarrative, type GenerateNarrativeResult } from "./generate";
 import { generateRoadmapHtml } from "./roadmap";
@@ -25,16 +24,18 @@ const defaultGenerator: NarrativeGenerator = (eventDigest) => generateNarrative(
  * event log (with rationales) into grounded prose, store it in `narratives`, and
  * emit narrative.generated — in one transaction. The generator is injectable so
  * the storage path is testable without the API. Regenerated on demand only.
+ * Scoped to the given projectId; returns a no-op result when the project has no events.
  */
 export async function materializeNarrative(
   db: Db,
+  projectId: string,
   generate: NarrativeGenerator = defaultGenerator,
   roadmapDeps: RoadmapDeps = {},
 ): Promise<MaterializeNarrativeResult> {
   // chronological (listActivity is newest-first)
-  const items = (await listActivity(db, undefined, 2000)).slice().reverse();
+  const items = (await listActivity(db, projectId, 2000)).slice().reverse();
   const eventCount = items.length;
-  if (eventCount === 0) throw new Error("No events yet — nothing to narrate.");
+  if (eventCount === 0) return { eventCount: 0, chapters: 0 }; // nothing to narrate — no-op (was: throw)
 
   const eventDigest = items
     .map((it) => {
@@ -48,9 +49,7 @@ export async function materializeNarrative(
   const result = await generate(eventDigest, eventCount);
   if (!result.ok) throw new Error(`Narrative generation failed: ${result.failure}`);
 
-  const projectId = await getActiveProjectId(db, null);
-
-  // Best-effort roadmap HTML (REQ-016): grounded in the chapters + real requirement statuses.
+  // Best-effort roadmap HTML — grounded in the chapters + this project's requirement statuses.
   const generateRoadmap = roadmapDeps.generateRoadmap ?? generateRoadmapHtml;
   let roadmapHtml: string | null = null;
   try {
@@ -68,6 +67,7 @@ export async function materializeNarrative(
     await emitEvent(tx, {
       type: "narrative.generated",
       subjectType: "project",
+      subjectId: projectId,
       payload: { event_count: eventCount, chapters: result.content.chapters.length },
       projectId,
     });
