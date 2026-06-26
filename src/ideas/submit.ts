@@ -1,5 +1,5 @@
 import type { Db } from "../db/client";
-import { ideas } from "../db/schema";
+import { ideas, ideaPhotos } from "../db/schema";
 import { emitEvent } from "../db/events";
 import { getActiveProjectId } from "../project/active";
 
@@ -10,6 +10,7 @@ export interface SubmitIdeaInput {
   viability?: number | null; // 1-10
   authorId: string; // users.id
   state?: "scratch" | "voting"; // scratch = private holding area (REQ-024); default voting
+  photos?: { mediaType: string; data: Buffer }[]; // attached at submission (REQ-031)
 }
 
 export interface SubmittedIdea {
@@ -55,6 +56,11 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
       })
       .returning({ id: ideas.id, title: ideas.title });
 
+    const photos = input.photos ?? [];
+    if (photos.length) {
+      await tx.insert(ideaPhotos).values(photos.map((p) => ({ ideaId: row.id, image: p.data, mediaType: p.mediaType })));
+    }
+
     await emitEvent(tx, {
       type: "idea.submitted",
       subjectType: "idea",
@@ -64,6 +70,7 @@ export async function submitIdea(db: Db, input: SubmitIdeaInput): Promise<Submit
         author: input.authorId,
         state,
         scores: { feasibility: input.feasibility ?? null, viability: input.viability ?? null },
+        photo_count: photos.length,
       },
       rationale: why,
       projectId,

@@ -21,6 +21,11 @@ export default async function NewIdeaPage() {
     const feasibilityRaw = formData.get("feasibility");
     const viabilityRaw = formData.get("viability");
     const state = formData.get("intent") === "scratch" ? "scratch" : "voting";
+    const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/gif"]);
+    const files = formData.getAll("photos").filter((f): f is File => f instanceof File && f.size > 0);
+    if (files.length > 8) throw new Error("Attach at most 8 photos.");
+    for (const f of files) if (!ALLOWED.has(f.type)) throw new Error(`Unsupported image type: ${f.type || "unknown"}.`);
+    const photos = await Promise.all(files.map(async (f) => ({ mediaType: f.type, data: Buffer.from(await f.arrayBuffer()) })));
     await submitIdea(getDb(), {
       title: String(formData.get("title") ?? ""),
       why: String(formData.get("why") ?? ""),
@@ -28,6 +33,7 @@ export default async function NewIdeaPage() {
       viability: viabilityRaw ? Number(viabilityRaw) : null,
       authorId: s.user.id,
       state,
+      photos,
     });
     redirect("/ideas");
   }
@@ -54,6 +60,15 @@ export default async function NewIdeaPage() {
             <input name="viability" type="number" min={1} max={10} className={fieldClass} />
           </Field>
         </div>
+        <Field label="Photos (optional — up to 8; png/jpeg/webp/gif)">
+          <input
+            type="file"
+            name="photos"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            multiple
+            className={fieldClass}
+          />
+        </Field>
         <div className="flex flex-wrap items-center gap-3">
           <button type="submit" name="intent" value="voting" className={buttonClass("primary")}>
             Open for voting

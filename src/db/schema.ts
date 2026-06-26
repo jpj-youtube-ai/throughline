@@ -81,6 +81,14 @@ export const ideas = pgTable("ideas", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const ideaPhotos = pgTable("idea_photos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ideaId: uuid("idea_id").notNull().references(() => ideas.id, { onDelete: "cascade" }),
+  image: bytea("image").notNull(),
+  mediaType: text("media_type").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const votes = pgTable(
   "votes",
   {
