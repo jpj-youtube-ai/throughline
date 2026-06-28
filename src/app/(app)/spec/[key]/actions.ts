@@ -19,7 +19,7 @@ export interface GenTask {
   title: string;
   claimState: "unclaimed" | "claimed";
 }
-export type GenState = { ok: true; tasks: GenTask[] } | { ok: false; error: string } | null;
+export type GenState = { ok: true; generatedKeys: string[]; tasks: GenTask[] } | { ok: false; error: string } | null;
 
 export async function generateTasksForRequirement(_prev: GenState, formData: FormData): Promise<GenState> {
   const session = await auth();
@@ -40,16 +40,10 @@ export async function generateTasksForRequirement(_prev: GenState, formData: For
   const r = await generateForRequirementKey(db, pid, key);
   if (!r.ok) return { ok: false, error: r.failure ?? "Generation failed." };
 
-  // Issue creation (and previews) is the WORKER's job: every tick it opens an issue
-  // for each task without one (REQ-009). The action must NOT also create issues — it
-  // would race the worker (both see the new tasks with github_issue_number IS NULL and
-  // each opens one → duplicate issues, observed for NBCC). The worker picks these tasks
-  // up within one tick. Keeping this slow, external work off the request path also means
-  // the action returns as soon as tasks are persisted.
-
-  // Re-fetch the requirement's tasks (now persisted, with ids) so they render
-  // inline with claim controls — the detail sits in an intercepted drawer that
-  // doesn't re-render on revalidate, so we return the data directly.
+  // Issue creation (and previews) is the WORKER's job (REQ-009) — it would race the
+  // worker if the action also opened issues. The just-generated tasks are issue-less
+  // now, so they are NOT yet visible (getRequirementDetail filters them); the client
+  // polls pollRequirementTasks and reveals each as its issue lands.
   const detail = await getRequirementDetail(db, pid, key);
   const genTasks: GenTask[] = (detail?.tasks ?? []).map((t) => ({
     id: t.id,
@@ -61,7 +55,7 @@ export async function generateTasksForRequirement(_prev: GenState, formData: For
   revalidatePath("/spec");
   revalidatePath("/dashboard");
   revalidatePath(`/spec/${key}`);
-  return { ok: true, tasks: genTasks };
+  return { ok: true, generatedKeys: r.taskKeys ?? [], tasks: genTasks };
 }
 
 export type DiagramState = { ok: true; html: string } | { ok: false; error: string } | null;
@@ -90,6 +84,17 @@ export async function generateRequirementDiagram(_prev: DiagramState, formData: 
   revalidatePath("/spec");
   revalidatePath("/dashboard");
   return { ok: true, html };
+}
+
+// Poll the requirement's currently-VISIBLE tasks (those whose GitHub issue exists)
+// for the generate button's auto-reveal (REQ-009). Read-only; project-scoped.
+export async function pollRequirementTasks(key: string): Promise<GenTask[]> {
+  const session = await auth();
+  if (!session?.user?.id) return [];
+  const db = getDb();
+  const pid = await activeProjectId();
+  const detail = await getRequirementDetail(db, pid, key);
+  return (detail?.tasks ?? []).map((t) => ({ id: t.id, key: t.key, title: t.title, claimState: t.claimState }));
 }
 
 // Claim a task from the spec-map requirement detail (REQ-010). Same claim domain

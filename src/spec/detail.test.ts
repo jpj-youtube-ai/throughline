@@ -15,7 +15,7 @@ test("getRequirementDetail returns the requirement with its tasks; null for unkn
     assert.equal(await getRequirementDetail(db, proj.id, "REQ-404"), null);
 
     const [r] = await db.insert(requirements).values({ key: "REQ-001", title: "Search", description: "d", provenance: "imported", projectId: proj.id }).returning({ id: requirements.id });
-    await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, githubIssueUrl: "http://x/1", projectId: proj.id });
+    await db.insert(tasks).values({ key: "TASK-001", title: "a", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, githubIssueNumber: 1, githubIssueUrl: "http://x/1", projectId: proj.id });
 
     const detail = await getRequirementDetail(db, proj.id, "REQ-001");
     assert.ok(detail);
@@ -26,6 +26,11 @@ test("getRequirementDetail returns the requirement with its tasks; null for unkn
     assert.ok(detail!.tasks[0].id.length > 0, "task row carries its id");
     assert.equal(detail!.tasks[0].githubIssueUrl, "http://x/1");
     assert.equal(detail!.diagramHtml, null); // defaults null until generated
+
+    // A task with no GitHub issue yet is NOT visible (REQ-009 refinement).
+    await db.insert(tasks).values({ key: "TASK-002", title: "pending", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id });
+    const after = await getRequirementDetail(db, proj.id, "REQ-001");
+    assert.deepEqual(after!.tasks.map((t) => t.key), ["TASK-001"], "issue-less TASK-002 is hidden");
   } finally { await close(); }
 });
 
@@ -50,8 +55,8 @@ test("getRequirementDetail(db, projectId, key) is scoped: same key in two projec
       .values({ key: "REQ-001", title: "P2 feature", description: "from p2", provenance: "imported", projectId: p2.id })
       .returning({ id: requirements.id });
 
-    await db.insert(tasks).values({ key: "TASK-100", title: "p1 task", body: "b", requirementId: r1.id, effort: 1, risk: "low", confidence: 50, projectId: p1.id });
-    await db.insert(tasks).values({ key: "TASK-200", title: "p2 task", body: "b", requirementId: r2.id, effort: 1, risk: "low", confidence: 50, projectId: p2.id });
+    await db.insert(tasks).values({ key: "TASK-100", title: "p1 task", body: "b", requirementId: r1.id, effort: 1, risk: "low", confidence: 50, githubIssueNumber: 100, projectId: p1.id });
+    await db.insert(tasks).values({ key: "TASK-200", title: "p2 task", body: "b", requirementId: r2.id, effort: 1, risk: "low", confidence: 50, githubIssueNumber: 200, projectId: p2.id });
 
     const d1 = await getRequirementDetail(db, p1.id, "REQ-001");
     assert.ok(d1);

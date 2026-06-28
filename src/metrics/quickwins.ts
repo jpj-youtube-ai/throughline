@@ -1,4 +1,4 @@
-import { and, eq, asc } from "drizzle-orm";
+import { and, eq, asc, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks, requirements } from "../db/schema";
 
@@ -44,8 +44,8 @@ export async function listQuickWins(db: Db, projectId?: string, limit = 8): Prom
     .innerJoin(requirements, eq(tasks.requirementId, requirements.id))
     .where(
       projectId
-        ? and(eq(tasks.claimState, "unclaimed"), eq(tasks.githubStatus, "open"), eq(tasks.projectId, projectId))
-        : and(eq(tasks.claimState, "unclaimed"), eq(tasks.githubStatus, "open")),
+        ? and(eq(tasks.claimState, "unclaimed"), eq(tasks.githubStatus, "open"), eq(tasks.projectId, projectId), isNotNull(tasks.githubIssueNumber))
+        : and(eq(tasks.claimState, "unclaimed"), eq(tasks.githubStatus, "open"), isNotNull(tasks.githubIssueNumber)),
     )
     .orderBy(asc(tasks.key));
 

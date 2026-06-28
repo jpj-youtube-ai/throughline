@@ -24,9 +24,9 @@ test("listPipeline buckets ideas and tasks into the five lifecycle stages", asyn
       { title: "Rejected idea", why: "w", authorId: u.id, state: "rejected", projectId: proj.id }, // excluded
     ]);
     await db.insert(tasks).values([
-      { key: "TASK-001", title: "open", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, claimState: "unclaimed", githubStatus: "open", projectId: proj.id },
-      { key: "TASK-002", title: "claimed", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, claimState: "claimed", githubStatus: "open", projectId: proj.id },
-      { key: "TASK-003", title: "merged", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, claimState: "claimed", githubStatus: "closed", projectId: proj.id },
+      { key: "TASK-001", title: "open", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, claimState: "unclaimed", githubStatus: "open", githubIssueNumber: 1, projectId: proj.id },
+      { key: "TASK-002", title: "claimed", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, claimState: "claimed", githubStatus: "open", githubIssueNumber: 2, projectId: proj.id },
+      { key: "TASK-003", title: "merged", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, claimState: "claimed", githubStatus: "closed", githubIssueNumber: 3, projectId: proj.id },
     ]);
 
     const stages = await listPipeline(db);
@@ -45,6 +45,16 @@ test("listPipeline buckets ideas and tasks into the five lifecycle stages", asyn
     assert.equal(by.claimed.items[0].label, "TASK-002");
     assert.equal(by.merged.count, 1);
     assert.equal(by.merged.items[0].label, "TASK-003");
+
+    // A task with no GitHub issue yet is NOT visible in the pipeline (REQ-009 refinement).
+    await db.insert(tasks).values({
+      key: "TASK-004", title: "pending", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50,
+      claimState: "unclaimed", githubStatus: "open", projectId: proj.id,
+      // githubIssueNumber intentionally omitted — simulates a task between generation and issue creation
+    });
+    const stages2 = await listPipeline(db);
+    const by2 = Object.fromEntries(stages2.map((s) => [s.key, s]));
+    assert.equal(by2.open.count, 1, "issue-less TASK-004 is hidden from pipeline");
   } finally {
     await close();
   }
@@ -78,8 +88,8 @@ test("listPipeline with projectId returns only that project's ideas and tasks", 
       { title: "Idea B", why: "w", authorId: u.id, state: "voting", projectId: projB.id },
     ]);
     await db.insert(tasks).values([
-      { key: "TASK-001", title: "Task A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 80, projectId: projA.id },
-      { key: "TASK-001", title: "Task B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 80, projectId: projB.id },
+      { key: "TASK-001", title: "Task A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 80, githubIssueNumber: 1, projectId: projA.id },
+      { key: "TASK-001", title: "Task B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 80, githubIssueNumber: 2, projectId: projB.id },
     ]);
 
     const stagesA = await listPipeline(db, projA.id);

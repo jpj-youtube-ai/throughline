@@ -17,12 +17,13 @@ test("listTasks returns all tasks when no projectId given", async () => {
       .returning({ id: requirements.id });
 
     await db.insert(tasks).values([
-      { key: "TASK-001", title: "First", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 80, projectId: proj.id },
-      { key: "TASK-002", title: "Second", body: "b", requirementId: r.id, effort: 2, risk: "med", confidence: 60, projectId: proj.id },
+      { key: "TASK-001", title: "First", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 80, githubIssueNumber: 1, projectId: proj.id },
+      { key: "TASK-002", title: "Second", body: "b", requirementId: r.id, effort: 2, risk: "med", confidence: 60, githubIssueNumber: 2, projectId: proj.id },
     ]);
 
+    await db.insert(tasks).values({ key: "TASK-003", title: "Pending", body: "b", requirementId: r.id, effort: 1, risk: "low", confidence: 50, projectId: proj.id });
     const result = await listTasks(db);
-    assert.equal(result.length, 2);
+    assert.equal(result.length, 2, "issue-less TASK-003 is hidden");
     assert.equal(result[0].key, "TASK-001");
     assert.equal(result[1].key, "TASK-002");
   } finally {
@@ -54,8 +55,8 @@ test("listTasks with projectId returns only that project's tasks", async () => {
       .returning({ id: requirements.id });
 
     await db.insert(tasks).values([
-      { key: "TASK-001", title: "Task A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 80, projectId: projA.id },
-      { key: "TASK-001", title: "Task B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 80, projectId: projB.id },
+      { key: "TASK-001", title: "Task A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 80, githubIssueNumber: 1, projectId: projA.id },
+      { key: "TASK-001", title: "Task B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 80, githubIssueNumber: 2, projectId: projB.id },
     ]);
 
     const tasksA = await listTasks(db, projA.id);

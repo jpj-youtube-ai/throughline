@@ -1,4 +1,4 @@
-import { and, eq, asc } from "drizzle-orm";
+import { and, eq, asc, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { tasks, requirements, users } from "../db/schema";
 
@@ -38,6 +38,7 @@ export async function listTasks(db: Db, projectId?: string): Promise<TaskListIte
     .from(tasks)
     .innerJoin(requirements, eq(tasks.requirementId, requirements.id))
     .leftJoin(users, eq(tasks.claimUserId, users.id))
-    .where(projectId ? eq(tasks.projectId, projectId) : undefined)
+    // A task is visible only once its GitHub issue exists (REQ-009 refinement).
+    .where(projectId ? and(eq(tasks.projectId, projectId), isNotNull(tasks.githubIssueNumber)) : isNotNull(tasks.githubIssueNumber))
     .orderBy(asc(tasks.key));
 }

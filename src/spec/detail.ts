@@ -1,4 +1,4 @@
-import { eq, asc, and } from "drizzle-orm";
+import { eq, asc, and, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { requirements, tasks } from "../db/schema";
 
@@ -26,7 +26,9 @@ export async function getRequirementDetail(db: Db, projectId: string, key: strin
   const taskRows = await db
     .select({ id: tasks.id, key: tasks.key, title: tasks.title, githubStatus: tasks.githubStatus, claimState: tasks.claimState, githubIssueUrl: tasks.githubIssueUrl })
     .from(tasks)
-    .where(and(eq(tasks.requirementId, req.id), eq(tasks.projectId, projectId)))
+    // A task is visible only once its GitHub issue exists (REQ-009 refinement —
+    // see docs/superpowers/specs/2026-06-26-tasks-visible-after-issue-design.md).
+    .where(and(eq(tasks.requirementId, req.id), eq(tasks.projectId, projectId), isNotNull(tasks.githubIssueNumber)))
     .orderBy(asc(tasks.key));
 
   return { ...req, tasks: taskRows };

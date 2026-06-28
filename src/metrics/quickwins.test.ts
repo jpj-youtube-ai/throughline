@@ -27,9 +27,9 @@ test("listQuickWins ranks only unclaimed/open tasks by score", async () => {
     const base = { body: "b", requirementId: r.id, projectId: proj.id };
     await db.insert(tasks).values([
       // a strong quick win
-      { key: "TASK-001", title: "easy", ...base, effort: 1, risk: "low", confidence: 90 },
+      { key: "TASK-001", title: "easy", ...base, effort: 1, risk: "low", confidence: 90, githubIssueNumber: 1 },
       // a poor pickup
-      { key: "TASK-002", title: "hard", ...base, effort: 5, risk: "high", confidence: 40 },
+      { key: "TASK-002", title: "hard", ...base, effort: 5, risk: "high", confidence: 40, githubIssueNumber: 2 },
       // claimed — excluded
       { key: "TASK-003", title: "taken", ...base, effort: 1, risk: "low", confidence: 95, claimState: "claimed" },
       // merged — excluded
@@ -43,6 +43,14 @@ test("listQuickWins ranks only unclaimed/open tasks by score", async () => {
     );
     assert.equal(wins[0].requirementKey, "REQ-003");
     assert.ok(wins[0].score > wins[1].score);
+
+    // A task with no GitHub issue yet is NOT visible as a quick-win (REQ-009 refinement).
+    await db.insert(tasks).values({
+      key: "TASK-005", title: "issueless", ...base, effort: 1, risk: "low", confidence: 95,
+      // githubIssueNumber intentionally omitted — simulates a task between generation and issue creation
+    });
+    const wins2 = await listQuickWins(db);
+    assert.ok(!wins2.some((w) => w.key === "TASK-005"), "issue-less TASK-005 is hidden from quick-wins");
   } finally {
     await close();
   }
@@ -70,8 +78,8 @@ test("listQuickWins with projectId returns only that project's tasks", async () 
       .returning({ id: requirements.id });
 
     await db.insert(tasks).values([
-      { key: "TASK-001", title: "Win A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 90, projectId: projA.id },
-      { key: "TASK-001", title: "Win B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 90, projectId: projB.id },
+      { key: "TASK-001", title: "Win A", body: "b", requirementId: rA.id, effort: 1, risk: "low", confidence: 90, githubIssueNumber: 1, projectId: projA.id },
+      { key: "TASK-001", title: "Win B", body: "b", requirementId: rB.id, effort: 1, risk: "low", confidence: 90, githubIssueNumber: 2, projectId: projB.id },
     ]);
 
     const winsA = await listQuickWins(db, projA.id);

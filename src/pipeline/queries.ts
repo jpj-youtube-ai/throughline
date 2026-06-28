@@ -1,4 +1,4 @@
-import { and, inArray, eq, asc } from "drizzle-orm";
+import { and, inArray, eq, asc, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { ideas, tasks } from "../db/schema";
 
@@ -37,7 +37,8 @@ export async function listPipeline(db: Db, projectId?: string): Promise<Pipeline
   const taskRows = await db
     .select({ key: tasks.key, claimState: tasks.claimState, githubStatus: tasks.githubStatus })
     .from(tasks)
-    .where(projectId ? eq(tasks.projectId, projectId) : undefined)
+    // A task is visible only once its GitHub issue exists (REQ-009 refinement).
+    .where(projectId ? and(eq(tasks.projectId, projectId), isNotNull(tasks.githubIssueNumber)) : isNotNull(tasks.githubIssueNumber))
     .orderBy(asc(tasks.key));
 
   const ideaItem = (title: string): PipelineItem => ({ label: truncate(title, 36), href: "/ideas" });
