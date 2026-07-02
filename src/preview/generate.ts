@@ -3,7 +3,7 @@ import { createClient } from "../anthropic";
 import { extractText, extractHtml, isValidHtml } from "./html";
 import { THROUGHLINE_STYLE } from "./throughline-style";
 
-const MODEL_ID = "claude-sonnet-4-6";
+const MODEL_ID = "claude-sonnet-5";
 const MAX_HTML_BYTES = 20000;
 
 const ROLE = `You produce ONE small, self-contained HTML "explainer" graphic that lets a NON-TECHNICAL person instantly understand what a software change does — like explaining it to a friend who can't code. Be VISUAL-FIRST with very little text: big simple shapes, arrows, and inline-SVG line icons, plus at most a few short plain-language labels. Show the OUTCOME / benefit — ideally a real-world ANALOGY, or a simple before → after. One clear idea. NO code, file names, technical terms, data structures, or app-UI mockups.`;

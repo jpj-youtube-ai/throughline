@@ -5,7 +5,7 @@ export type ModelChoice = "opus" | "sonnet";
 
 const MODEL_IDS: Record<ModelChoice, string> = {
   opus: "claude-opus-4-8",
-  sonnet: "claude-sonnet-4-6",
+  sonnet: "claude-sonnet-5",
 };
 
 export interface Config {
@@ -32,7 +32,7 @@ export function parseConfig(argv: string[]): Config {
       spec: { type: "string", default: "./SPEC.md" },
       repo: { type: "string", default: "." },
       claude: { type: "string" },
-      model: { type: "string", default: "opus" },
+      model: { type: "string", default: "sonnet" },
       out: { type: "string" },
       "max-context-tokens": { type: "string", default: "40000" },
       "max-retries": { type: "string", default: "2" },

@@ -3,7 +3,7 @@ import { createClient } from "../anthropic";
 import { extractText, extractHtml, isValidHtml } from "../preview/html";
 import { THROUGHLINE_STYLE } from "../preview/throughline-style";
 
-const MODEL_ID = "claude-sonnet-4-6";
+const MODEL_ID = "claude-sonnet-5";
 const MAX_HTML_BYTES = 30000;
 
 export interface RequirementDiagramInput {

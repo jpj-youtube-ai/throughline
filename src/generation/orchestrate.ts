@@ -13,7 +13,7 @@ import { recentGitLog } from "../github/clone";
 import { projectTaskSummary } from "./context";
 import { loadProjectPrototypes } from "../prototypes/store";
 
-const MODEL_ID = "claude-opus-4-8";
+const MODEL_ID = "claude-sonnet-5";
 const MAX_CONTEXT_TOKENS = 40000;
 
 export interface GenerateForIdeaResult {

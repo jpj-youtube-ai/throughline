@@ -30,7 +30,7 @@ export const composeDigest: ComposeFn = async ({ eventDigest, since }) => {
   let message: Anthropic.Message;
   try {
     message = await client.messages.create({
-      model: "claude-opus-4-8",
+      model: "claude-sonnet-5",
       max_tokens: 2000,
       system: SYSTEM,
       thinking: { type: "adaptive" },

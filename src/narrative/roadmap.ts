@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "../anthropic";
 import { extractText, extractHtml, isValidHtml } from "../preview/html";
 
-const MODEL_ID = "claude-sonnet-4-6";
+const MODEL_ID = "claude-sonnet-5";
 const MAX_HTML_BYTES = 30000;
 
 export interface RoadmapInput {

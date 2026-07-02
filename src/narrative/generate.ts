@@ -40,7 +40,7 @@ export async function generateNarrative(args: {
   let message: Anthropic.Message;
   try {
     message = await client.messages.create({
-      model: args.modelId ?? "claude-opus-4-8",
+      model: args.modelId ?? "claude-sonnet-5",
       max_tokens: 6000,
       system: SYSTEM,
       thinking: { type: "adaptive" },
